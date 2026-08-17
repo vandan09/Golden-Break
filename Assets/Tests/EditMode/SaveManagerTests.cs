@@ -1,0 +1,105 @@
+using Newtonsoft.Json;
+using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
+
+public class SaveManagerTests
+{
+    private sealed class FakeSavePersistence : ISavePersistence
+    {
+        private string _stored;
+        private bool _hasData;
+
+        public void Seed(string json)
+        {
+            _stored = json;
+            _hasData = true;
+        }
+
+        public bool HasSavedData() => _hasData;
+        public string Load() => _stored;
+
+        public void Save(string json)
+        {
+            _stored = json;
+            _hasData = true;
+        }
+    }
+
+    [Test]
+    public void LoadFrom_NoSavedData_ReturnsFreshSaveWithDefaults()
+    {
+        var persistence = new FakeSavePersistence();
+
+        SaveData data = SaveManager.LoadFrom(persistence);
+
+        Assert.AreEqual(SaveData.CurrentSaveVersion, data.SaveVersion);
+        Assert.AreEqual(0, data.BestScore);
+        Assert.AreEqual(0, data.Coins);
+        Assert.IsNotNull(data.CurrentCeramic);
+        Assert.AreEqual(1, data.CurrentCeramic.Tier);
+        Assert.AreEqual(4, data.CurrentCeramic.TotalCracks);
+        Assert.IsNotNull(data.Gallery);
+        Assert.AreEqual(0, data.Gallery.Count);
+        Assert.IsTrue(data.Settings.Sound);
+    }
+
+    [Test]
+    public void LoadFrom_ValidPreviouslySavedJson_RoundTripsAllFields()
+    {
+        var persistence = new FakeSavePersistence();
+        SaveData original = SaveData.CreateFresh("2026-08-17");
+        original.BestScore = 4280;
+        original.Coins = 245;
+        original.CurrentCeramic.Tier = 5;
+        original.CurrentCeramic.CracksRepaired = 3;
+        original.Gallery.Add(new GalleryEntryData { Tier = 1, Date = "2026-07-28", Score = 2140 });
+        persistence.Seed(JsonConvert.SerializeObject(original));
+
+        SaveData loaded = SaveManager.LoadFrom(persistence);
+
+        Assert.AreEqual(4280, loaded.BestScore);
+        Assert.AreEqual(245, loaded.Coins);
+        Assert.AreEqual(5, loaded.CurrentCeramic.Tier);
+        Assert.AreEqual(3, loaded.CurrentCeramic.CracksRepaired);
+        Assert.AreEqual(1, loaded.Gallery.Count);
+        Assert.AreEqual(2140, loaded.Gallery[0].Score);
+    }
+
+    [Test]
+    public void LoadFrom_CorruptedJson_ResetsToFreshSaveWithoutThrowing()
+    {
+        var persistence = new FakeSavePersistence();
+        persistence.Seed("{ this is not valid json ");
+
+        LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("SaveManager: save data corrupted.*"));
+        SaveData data = null;
+        Assert.DoesNotThrow(() => data = SaveManager.LoadFrom(persistence));
+
+        Assert.IsNotNull(data);
+        Assert.AreEqual(SaveData.CurrentSaveVersion, data.SaveVersion);
+        Assert.AreEqual(0, data.BestScore);
+    }
+
+    [Test]
+    public void LoadFrom_CorruptedJson_FiresOnSaveCorruptedEvent()
+    {
+        var persistence = new FakeSavePersistence();
+        persistence.Seed("not json at all");
+        bool fired = false;
+        System.Action handler = () => fired = true;
+        SaveManager.OnSaveCorrupted += handler;
+
+        try
+        {
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("SaveManager: save data corrupted.*"));
+            SaveManager.LoadFrom(persistence);
+        }
+        finally
+        {
+            SaveManager.OnSaveCorrupted -= handler;
+        }
+
+        Assert.IsTrue(fired);
+    }
+}

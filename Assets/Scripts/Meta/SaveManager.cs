@@ -1,0 +1,104 @@
+using System;
+using Newtonsoft.Json;
+using UnityEngine;
+
+/// <summary>
+/// Singleton owner of the local save file. Serialization and corruption
+/// handling (<see cref="LoadFrom"/>) is a static, scene-independent method
+/// so it can be unit-tested with an in-memory <see cref="ISavePersistence"/>
+/// fake — the MonoBehaviour wrapper only wires that logic to Unity's
+/// lifecycle (load on Awake, save on pause/quit).
+/// </summary>
+public sealed class SaveManager : MonoBehaviour
+{
+    public static SaveManager Instance { get; private set; }
+
+    public static event Action<SaveData> OnSaveLoaded;
+    public static event Action OnSaveCorrupted;
+
+    [SerializeField]
+    private bool _persistAcrossScenes = true;
+
+    private ISavePersistence _persistence;
+    private SaveData _current;
+
+    public SaveData Current => _current;
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+        if (_persistAcrossScenes)
+        {
+            DontDestroyOnLoad(gameObject);
+        }
+
+        _persistence = new PlayerPrefsSavePersistence();
+        Load();
+    }
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus)
+        {
+            Save();
+        }
+    }
+
+    private void OnApplicationQuit()
+    {
+        Save();
+    }
+
+    public void Load()
+    {
+        _current = LoadFrom(_persistence);
+        OnSaveLoaded?.Invoke(_current);
+    }
+
+    public void Save()
+    {
+        try
+        {
+            string json = JsonConvert.SerializeObject(_current);
+            _persistence.Save(json);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"SaveManager: failed to save — {e.Message}");
+        }
+    }
+
+    internal static SaveData LoadFrom(ISavePersistence persistence)
+    {
+        string today = DateTime.UtcNow.ToString("yyyy-MM-dd");
+
+        if (!persistence.HasSavedData())
+        {
+            return SaveData.CreateFresh(today);
+        }
+
+        string json = persistence.Load();
+        try
+        {
+            SaveData data = JsonConvert.DeserializeObject<SaveData>(json);
+            if (data == null)
+            {
+                throw new JsonException("Deserialized to null.");
+            }
+
+            return data;
+        }
+        catch (JsonException e)
+        {
+            Debug.LogError($"SaveManager: save data corrupted — {e.Message}");
+            OnSaveCorrupted?.Invoke();
+            return SaveData.CreateFresh(today);
+        }
+    }
+}
