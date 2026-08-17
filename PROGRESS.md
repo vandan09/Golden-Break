@@ -2,10 +2,10 @@
 
 **Current phase:** 0
 **Last updated:** 2026-08-17
-**Blocked on:** nothing — clarifications resolved, proceeding with Phase 0.
+**Blocked on:** nothing. Phase 0 complete. Ready to start Phase 1 (grid and pieces) — see CLAUDE.md §3.1, §3.3, §7.4 and BUILD_PLAN.md Phase 1 task list.
 
 ## Phase status
-- [~] Phase 0 — Project setup (fresh build, no GLYPH reuse — see deviations)
+- [x] Phase 0 — Project setup (fresh build, no GLYPH reuse — see deviations)
 - [ ] Phase 1 — Grid and pieces
 - [ ] Phase 2 — Clearing and scoring
 - [ ] Phase 3 — kintsugi meta
@@ -29,6 +29,9 @@
   1. `com.unity.nuget.newtonsoft-json` ships as raw precompiled DLLs (`Runtime/Newtonsoft.Json.dll`) with no `.asmdef` of its own — unlike NUnit, there's no assembly name to add to `references`. `GoldenBreak.Tests.EditMode.asmdef`'s `overrideReferences: true` (needed for `nunit.framework.dll`) also silently cut off Unity's automatic precompiled-DLL referencing, so `SaveManagerTests.cs`'s `using Newtonsoft.Json;` failed to compile. Fixed by adding `"Newtonsoft.Json.dll"` alongside `"nunit.framework.dll"` in `precompiledReferences`.
   2. `SaveManager.LoadFrom`, `HapticManager.GetPatternMilliseconds`, and `AnalyticsManager.FormatParameters` were deliberately `internal` (test seams, not public API) — but `GoldenBreak.Runtime` and `GoldenBreak.Tests.EditMode` are separate assemblies once asmdefs exist, and `internal` doesn't cross assembly boundaries. Fixed with `Assets/Scripts/AssemblyInfo.cs` (`[assembly: InternalsVisibleTo("GoldenBreak.Tests.EditMode")]`) rather than widening these to `public` just to make them reachable.
 - **All 23 EditMode tests passing, 0 compile errors** (`ObjectPoolTests` ×8, `SaveManagerTests` ×4, `HapticManagerTests` ×5, `AdManagerTests` ×2, `AnalyticsManagerTests` ×4) — verified via `Unity.exe -runTests -testPlatform EditMode` (note: `-runTests` must NOT be combined with `-quit`; the two race and `-quit` can win before the test runner writes results, which happened on the first attempt).
+- **Phase 0 QA gate fully closed, on real device (emulator), not just build success.** Rebuilt the APK with the complete Phase 0 codebase (all managers, DOTween, asmdefs), installed it on the `GLYPH_Test` AVD (Android 14, x86_64 with ARM translation — the build only targets ARMv7/ARM64 per spec, no x86_64 slice, and it ran anyway via the emulator's NDK translation layer), launched via `am`/`monkey`, and confirmed via `adb shell pidof` + `adb logcat --pid` that it started and stayed running with zero exceptions/fatals in its own log over several seconds. A single unrelated `com.google.android.bluetooth` system-service crash appeared in the full device log at the same time — confirmed unrelated by PID before concluding Golden Break itself is stable.
+- **Risk flagged: APK is already 41.7MB with zero game assets, over the spec's <35MB budget (§ Target APK).** The very first empty-project build (before DOTween/managers) was 26.4MB; adding DOTween + ~20 small C# scripts pushed it to 41.7MB — a jump that's disproportionate to the actual content added, worth investigating properly in Phase 5 (candidates: IL2CPP debug symbols not stripped by default in a non-Development, non-explicitly-configured build; `managedStrippingLevel: High` is set but IL2CPP code generation mode isn't explicitly pinned to a release/master config in `ConfigurePlayerSettings`). Recorded here now, while the project has zero art/audio, so it doesn't get lost among later, harder-to-isolate size contributors.
+- **`PlayerSettings.applicationIdentifier` was never explicitly set** — Unity auto-derived `com.GoldenBreak.GoldenBreak` from company/product name, and the build/install/launch verification above happened to run under that auto-derived ID. Since the package ID is permanent once published to Play Store, pinned it explicitly in `ConfigurePlayerSettings()` (`PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.GoldenBreak.GoldenBreak")`) rather than leaving it to implicit derivation, even though the value itself didn't change.
 
 ## Environment notes
 - Unity 2022.3.62f3 (2022 LTS) confirmed installed at `D:\Unity\Editor\2022.3.62f3\Editor\Unity.exe`, with Android Player support present.
