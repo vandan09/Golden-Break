@@ -16,6 +16,15 @@ public sealed class PieceController : MonoBehaviour
     private static readonly Color InvalidGhostColour = new Color(1f, 0.25f, 0.25f, 0.5f);
     private const float ValidGhostAlpha = 0.3f;
 
+    // CLAUDE.md §3.3: "lifts above the grid (z-order change so it renders
+    // on top)". Grid cells sit at z=0; smaller (more negative) z is closer
+    // to a default orthographic camera at z=-10, which Unity's standard
+    // back-to-front transparent sprite sorting renders on top of anything
+    // farther away. Ghost sits between the two so the actively-dragged
+    // piece is always the topmost thing on screen.
+    private const float GhostZOffset = -0.5f;
+    private const float DragZOffset = -1f;
+
     private GridManager _grid;
     private PieceTrayController _tray;
     private PieceSpawner _spawner;
@@ -105,7 +114,7 @@ public sealed class PieceController : MonoBehaviour
 
         _dragView.gameObject.SetActive(true);
         _dragView.SetPiece(piece, _handColourIds[slotIndex], Constants.DragPieceScale);
-        _dragView.transform.position = worldPosition;
+        _dragView.transform.position = new Vector3(worldPosition.x, worldPosition.y, DragZOffset);
 
         _ghostView.gameObject.SetActive(true);
         UpdateDrag(worldPosition);
@@ -118,7 +127,7 @@ public sealed class PieceController : MonoBehaviour
             return;
         }
 
-        _dragView.transform.position = worldPosition;
+        _dragView.transform.position = new Vector3(worldPosition.x, worldPosition.y, DragZOffset);
 
         PieceDefinition piece = _hand[_draggedSlotIndex];
         Vector2 continuousCell = _grid.WorldToContinuousCell(worldPosition);
@@ -143,7 +152,8 @@ public sealed class PieceController : MonoBehaviour
 
         Vector2 boundsCenter = PieceView.ComputeCellBoundsCenter(piece.cells);
         Vector3 ghostLocalPos = GridManager.CellToLocalPosition(origin.x + boundsCenter.x, origin.y + boundsCenter.y);
-        _ghostView.transform.position = _grid.transform.TransformPoint(ghostLocalPos);
+        Vector3 ghostWorldPos = _grid.transform.TransformPoint(ghostLocalPos);
+        _ghostView.transform.position = new Vector3(ghostWorldPos.x, ghostWorldPos.y, GhostZOffset);
     }
 
     public void EndDrag()
