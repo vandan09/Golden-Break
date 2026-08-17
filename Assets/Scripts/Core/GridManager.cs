@@ -64,6 +64,14 @@ public sealed class GridManager : MonoBehaviour
 
     public static Vector3 CellToLocalPosition(int x, int y)
     {
+        return CellToLocalPosition((float)x, (float)y);
+    }
+
+    // Continuous overload: used for positioning a piece's bounding-box
+    // centre (which generally isn't an integer cell) rather than a single
+    // cell.
+    public static Vector3 CellToLocalPosition(float x, float y)
+    {
         float step = Constants.CellWorldSize;
         float originOffset = (Constants.GridSize - 1) * step * 0.5f;
 
@@ -73,6 +81,17 @@ public sealed class GridManager : MonoBehaviour
         float worldX = (x * step) - originOffset;
         float worldY = originOffset - (y * step);
         return new Vector3(worldX, worldY, 0f);
+    }
+
+    public Vector2 WorldToContinuousCell(Vector3 worldPosition)
+    {
+        Vector3 local = transform.InverseTransformPoint(worldPosition);
+        float step = Constants.CellWorldSize;
+        float originOffset = (Constants.GridSize - 1) * step * 0.5f;
+
+        float cellX = (local.x + originOffset) / step;
+        float cellY = (originOffset - local.y) / step;
+        return new Vector2(cellX, cellY);
     }
 
     public bool TryWorldToCell(Vector3 worldPosition, out int cellX, out int cellY)

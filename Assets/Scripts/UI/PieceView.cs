@@ -40,6 +40,11 @@ public sealed class PieceView : MonoBehaviour
 
     public void SetPiece(PieceDefinition piece, int colourId, float blockScale)
     {
+        SetPiece(piece, UiPalette.GetBlockColour(colourId), blockScale);
+    }
+
+    public void SetPiece(PieceDefinition piece, Color colour, float blockScale)
+    {
         Initialize();
         ClearBlocks();
 
@@ -50,7 +55,6 @@ public sealed class PieceView : MonoBehaviour
         }
 
         CurrentPiece = piece;
-        Color colour = UiPalette.GetBlockColour(colourId);
         Vector2 boundsCenter = ComputeCellBoundsCenter(piece.cells);
 
         foreach (Vector2Int cell in piece.cells)
