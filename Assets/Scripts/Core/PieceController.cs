@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using DG.Tweening;
 using UnityEngine;
 
 /// <summary>
@@ -28,6 +30,7 @@ public sealed class PieceController : MonoBehaviour
     private GridManager _grid;
     private PieceTrayController _tray;
     private PieceSpawner _spawner;
+    private ScoreManager _scoreManager;
 
     private PieceDefinition[] _hand;
     private int[] _handColourIds;
@@ -39,17 +42,22 @@ public sealed class PieceController : MonoBehaviour
     private bool _lastGhostValid;
 
     public bool IsDragging => _draggedSlotIndex >= 0;
+    public bool IsGameOver { get; private set; }
     public PieceDefinition[] Hand => _hand;
     public GridManager Grid => _grid;
     public PieceTrayController Tray => _tray;
+    public ScoreManager Score => _scoreManager;
 
     public event System.Action OnGameOver;
+    public event System.Action<LineClearDetector.ClearResult, int> OnLinesCleared;
 
-    public void Configure(GridManager grid, PieceTrayController tray, PieceSpawner spawner)
+    public void Configure(GridManager grid, PieceTrayController tray, PieceSpawner spawner, ScoreManager scoreManager)
     {
         _grid = grid;
         _tray = tray;
         _spawner = spawner;
+        _scoreManager = scoreManager;
+        _scoreManager.OnNewBest += PlayNewBestFeedback;
 
         if (_dragView == null)
         {
@@ -57,6 +65,15 @@ public sealed class PieceController : MonoBehaviour
             _ghostView = CreateChildPieceView("GhostPiece");
         }
 
+        DealNewHand();
+    }
+
+    public void RestartGame()
+    {
+        _grid.Board.Clear();
+        _grid.RefreshAllCells();
+        _scoreManager.ResetForNewGame();
+        IsGameOver = false;
         DealNewHand();
     }
 
@@ -102,7 +119,7 @@ public sealed class PieceController : MonoBehaviour
 
     public void BeginDrag(int slotIndex, Vector3 worldPosition)
     {
-        if (slotIndex < 0 || slotIndex >= _hand.Length || _hand[slotIndex] == null || IsDragging)
+        if (slotIndex < 0 || slotIndex >= _hand.Length || _hand[slotIndex] == null || IsDragging || IsGameOver)
         {
             return;
         }
@@ -111,6 +128,9 @@ public sealed class PieceController : MonoBehaviour
 
         PieceDefinition piece = _hand[slotIndex];
         _tray.Slots[slotIndex].SetPiece(null, 0, Constants.TrayPieceScale);
+
+        AudioManager.Instance?.PlaySound(SoundEffect.PiecePickup);
+        HapticManager.Trigger(HapticPattern.Pickup);
 
         _dragView.gameObject.SetActive(true);
         _dragView.SetPiece(piece, _handColourIds[slotIndex], Constants.DragPieceScale);
@@ -174,6 +194,53 @@ public sealed class PieceController : MonoBehaviour
                 _grid.RefreshCell(_lastGhostOrigin.x + cell.x, _lastGhostOrigin.y + cell.y);
             }
 
+            LineClearDetector.ClearResult clearResult = LineClearDetector.DetectAndClear(_grid.Board);
+            if (clearResult.AnyCleared)
+            {
+                var clearedCells = new HashSet<Vector2Int>();
+
+                foreach (int clearedRow in clearResult.ClearedRows)
+                {
+                    for (int x = 0; x < Constants.GridSize; x++)
+                    {
+                        _grid.RefreshCell(x, clearedRow);
+                        clearedCells.Add(new Vector2Int(x, clearedRow));
+                    }
+                }
+
+                foreach (int clearedColumn in clearResult.ClearedColumns)
+                {
+                    for (int y = 0; y < Constants.GridSize; y++)
+                    {
+                        _grid.RefreshCell(clearedColumn, y);
+                        clearedCells.Add(new Vector2Int(clearedColumn, y));
+                    }
+                }
+
+                _grid.PlayClearFlash(clearedCells);
+
+                bool isCombo = clearResult.TotalLinesCleared >= 2;
+                if (isCombo)
+                {
+                    Camera.main.transform.DOShakePosition(Constants.ComboScreenShakeDurationSeconds, Constants.ComboScreenShakeStrength);
+                    AudioManager.Instance?.PlaySound(SoundEffect.ComboClear);
+                    HapticManager.Trigger(HapticPattern.Combo);
+                }
+                else
+                {
+                    AudioManager.Instance?.PlaySound(SoundEffect.LineClear);
+                    HapticManager.Trigger(HapticPattern.Clear);
+                }
+            }
+            else
+            {
+                AudioManager.Instance?.PlaySound(SoundEffect.PiecePlace);
+                HapticManager.Trigger(HapticPattern.Place);
+            }
+
+            int pointsAwarded = _scoreManager.ApplyLineClear(clearResult.TotalLinesCleared);
+            OnLinesCleared?.Invoke(clearResult, pointsAwarded);
+
             _hand[slotIndex] = null;
 
             if (AllPiecesPlaced())
@@ -192,6 +259,7 @@ public sealed class PieceController : MonoBehaviour
         else
         {
             _tray.Slots[slotIndex].SetPiece(piece, _handColourIds[slotIndex], Constants.TrayPieceScale);
+            AudioManager.Instance?.PlaySound(SoundEffect.PieceInvalid);
         }
 
         _dragView.gameObject.SetActive(false);
@@ -199,10 +267,18 @@ public sealed class PieceController : MonoBehaviour
         _draggedSlotIndex = -1;
     }
 
+    private void PlayNewBestFeedback()
+    {
+        AudioManager.Instance?.PlaySound(SoundEffect.NewBest);
+    }
+
     private void CheckGameOver()
     {
         if (GameOverDetector.IsGameOver(_grid.Board, _hand))
         {
+            IsGameOver = true;
+            AudioManager.Instance?.PlaySound(SoundEffect.GameOver);
+            HapticManager.Trigger(HapticPattern.GameOver);
             OnGameOver?.Invoke();
         }
     }

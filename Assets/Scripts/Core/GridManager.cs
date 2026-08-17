@@ -1,3 +1,5 @@
+using DG.Tweening;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -8,9 +10,15 @@ using UnityEngine;
 /// </summary>
 public sealed class GridManager : MonoBehaviour
 {
+    // Flash overlays sit between the grid (z=0) and the drag/ghost pieces
+    // (z=-0.5/-1, see PieceController) so a flash never occludes the piece
+    // the player is actively looking at.
+    private const float FlashZOffset = -0.2f;
+
     private readonly SpriteRenderer[] _cellRenderers = new SpriteRenderer[Constants.GridSize * Constants.GridSize];
 
     private BoardState _board;
+    private ObjectPool<SpriteRenderer> _flashPool;
 
     public BoardState Board => _board;
 
@@ -41,7 +49,60 @@ public sealed class GridManager : MonoBehaviour
             }
         }
 
+        if (_flashPool == null)
+        {
+            _flashPool = new ObjectPool<SpriteRenderer>(
+                factory: CreateFlashRenderer,
+                onGet: r => r.gameObject.SetActive(true),
+                onReturn: r => r.gameObject.SetActive(false));
+        }
+
         RefreshAllCells();
+    }
+
+    // CLAUDE.md §3.8: cleared cells "flash white (100ms), then dissolve".
+    // Simplified from the spec's literal particle-dissolve to a fading
+    // white overlay — no final particle art exists yet (Phase 5/8), and
+    // this conveys the same beat (flash, then fade away) without a full
+    // ParticleSystem. The underlying cell colour is already updated to
+    // empty by the time this plays (RefreshCell already ran) — this is a
+    // pure visual overlay on top, not a delay of the logical clear.
+    public void PlayClearFlash(IEnumerable<Vector2Int> cells)
+    {
+        foreach (Vector2Int cell in cells)
+        {
+            SpriteRenderer flash = _flashPool.Get();
+            Vector3 localPos = CellToLocalPosition(cell.x, cell.y);
+            flash.transform.localPosition = new Vector3(localPos.x, localPos.y, FlashZOffset);
+            flash.transform.localScale = Vector3.one * (Constants.CellWorldSize - Constants.CellGap);
+            flash.color = Color.white;
+
+            SpriteRenderer capturedFlash = flash;
+
+            // DOTween.ToAlpha directly, not the SpriteRenderer.DOFade
+            // extension from DOTweenModuleSprite.cs — that module's
+            // extension methods aren't visible from this assembly (a
+            // Plugins-folder script outside any asmdef; other DOTween
+            // core calls like DOTween.Sequence() work fine, only the
+            // Modules/-specific extension methods don't resolve). Calling
+            // the same underlying core API DOFade wraps internally
+            // sidesteps the issue entirely rather than chasing Unity's
+            // assembly resolution further.
+            Tween fade = DOTween.ToAlpha(() => capturedFlash.color, c => capturedFlash.color = c, 0f, Constants.ClearFadeDurationSeconds);
+            DOTween.Sequence()
+                .AppendInterval(Constants.ClearFlashDurationSeconds)
+                .Append(fade)
+                .OnComplete(() => _flashPool.Return(capturedFlash));
+        }
+    }
+
+    private SpriteRenderer CreateFlashRenderer()
+    {
+        var flashObject = new GameObject("ClearFlash");
+        flashObject.transform.SetParent(transform, false);
+        var flashRenderer = flashObject.AddComponent<SpriteRenderer>();
+        flashRenderer.sprite = PlaceholderSprite.GetSolid(Color.white);
+        return flashRenderer;
     }
 
     public void RefreshAllCells()

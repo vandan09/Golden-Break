@@ -21,6 +21,12 @@ public static class UiPalette
         BlockCoral, BlockBlue, BlockGreen, BlockGold, BlockPurple
     };
 
+    public static readonly Color TextPrimary = FromHex("#c0c0d8");
+    public static readonly Color TextSecondary = FromHex("#7a7a9a");
+    public static readonly Color GoldFill = FromHex("#e8c060");
+    public static readonly Color Background = FromHex("#1a1a2e");
+    public static readonly Color Surface = FromHex("#252545");
+
     public static Color GetBlockColour(int colourId)
     {
         if (colourId < 0)

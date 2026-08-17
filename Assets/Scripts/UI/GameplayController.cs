@@ -53,6 +53,17 @@ public sealed class GameplayController : MonoBehaviour
 
         ConfigureCamera();
 
+        SaveManager saveManager = FindObjectOfType<SaveManager>();
+        if (saveManager == null)
+        {
+            saveManager = new GameObject("SaveManager").AddComponent<SaveManager>();
+        }
+
+        if (FindObjectOfType<AudioManager>() == null)
+        {
+            new GameObject("AudioManager").AddComponent<AudioManager>();
+        }
+
         var gridObject = new GameObject("Grid");
         var grid = gridObject.AddComponent<GridManager>();
         grid.BuildGrid();
@@ -66,11 +77,20 @@ public sealed class GameplayController : MonoBehaviour
         var pieceControllerObject = new GameObject("PieceController");
         var pieceController = pieceControllerObject.AddComponent<PieceController>();
         var spawner = new PieceSpawner(pool, new System.Random());
-        pieceController.Configure(grid, tray, spawner);
+        var scoreManager = new ScoreManager(saveManager.Current.BestScore);
+        pieceController.Configure(grid, tray, spawner, scoreManager);
 
         var inputHandlerObject = new GameObject("InputHandler");
         var inputHandler = inputHandlerObject.AddComponent<InputHandler>();
         inputHandler.Configure(pieceController, Camera.main);
+
+        var hudObject = new GameObject("GameplayHUD");
+        var hud = hudObject.AddComponent<GameplayHUD>();
+        hud.Configure(pieceController, saveManager);
+
+        var gameOverObject = new GameObject("GameOverScreen");
+        var gameOverScreen = gameOverObject.AddComponent<GameOverScreen>();
+        gameOverScreen.Configure(pieceController);
     }
 
     private static void ConfigureCamera()

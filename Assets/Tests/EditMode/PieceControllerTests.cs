@@ -26,7 +26,7 @@ public class PieceControllerTests
         var spawner = new PieceSpawner(new[] { _singleCellPiece }, new Random(1));
 
         _controller = new GameObject("Controller").AddComponent<PieceController>();
-        _controller.Configure(_grid, _tray, spawner);
+        _controller.Configure(_grid, _tray, spawner, new ScoreManager(initialBestScore: 0));
     }
 
     [TearDown]
@@ -204,7 +204,7 @@ public class PieceControllerTests
         bool gameOverFired = false;
         controller.OnGameOver += () => gameOverFired = true;
 
-        controller.Configure(grid, tray, dominoSpawner);
+        controller.Configure(grid, tray, dominoSpawner, new ScoreManager(initialBestScore: 0));
 
         Assert.IsTrue(gameOverFired);
 
@@ -228,23 +228,31 @@ public class PieceControllerTests
         tray.BuildSlots();
         var controller = new GameObject("DominoController2").AddComponent<PieceController>();
 
-        // Leave exactly one 1x2 gap at (0,0)-(1,0), the only place a
-        // domino can go — fill every other cell. After this test's own
-        // placement fills that gap too, the board is completely full, so
-        // the remaining hand trivially has nowhere left to fit.
+        // Checkerboard-fill every even-parity cell except (0,0) — leaves
+        // (0,0) and its odd-parity neighbour (1,0) as the only domino-sized
+        // gap, same structural trick as the DealNewHand checkerboard test
+        // above, but preserving one opening for this test's own placement.
+        // Critically, no row or column ever becomes fully filled by this
+        // placement (each row/column always keeps its other 3 odd-parity
+        // cells empty), so it can't trigger a line clear that would
+        // reopen space and invalidate the "nowhere left to fit" premise —
+        // an earlier version of this test filled everything solid except
+        // the gap, which placing the domino into completed row 0 and
+        // legitimately cleared it, making the test's own assumption false.
         for (int y = 0; y < Constants.GridSize; y++)
         {
             for (int x = 0; x < Constants.GridSize; x++)
             {
-                bool isTheOneOpenGap = y == 0 && (x == 0 || x == 1);
-                if (!isTheOneOpenGap)
+                bool isEven = (x + y) % 2 == 0;
+                bool isTheOneOpenGap = x == 0 && y == 0;
+                if (isEven && !isTheOneOpenGap)
                 {
                     grid.Board.Place(_singleCellPiece, x, y, colourId: 0);
                 }
             }
         }
 
-        controller.Configure(grid, tray, dominoSpawner);
+        controller.Configure(grid, tray, dominoSpawner, new ScoreManager(initialBestScore: 0));
 
         bool gameOverFired = false;
         controller.OnGameOver += () => gameOverFired = true;
