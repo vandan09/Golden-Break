@@ -77,6 +77,12 @@ public sealed class BoardState
         }
     }
 
+    public void ClearCell(int x, int y)
+    {
+        AssertInBounds(x, y);
+        _cellColourId[Index(x, y)] = EmptyColourId;
+    }
+
     private static void AssertInBounds(int x, int y)
     {
         Debug.Assert(x >= 0 && x < Constants.GridSize && y >= 0 && y < Constants.GridSize,

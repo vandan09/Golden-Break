@@ -113,6 +113,20 @@ public class BoardStateTests
     }
 
     [Test]
+    public void ClearCell_FilledCell_MakesItEmptyWithoutAffectingNeighbours()
+    {
+        var board = new BoardState();
+        PieceDefinition single = MakePiece(new Vector2Int(0, 0));
+        board.Place(single, 3, 3, colourId: 2);
+        board.Place(single, 4, 3, colourId: 2);
+
+        board.ClearCell(3, 3);
+
+        Assert.IsFalse(board.IsFilled(3, 3));
+        Assert.IsTrue(board.IsFilled(4, 3), "neighbouring cell should be untouched");
+    }
+
+    [Test]
     public void CanPlace_NullPiece_ThrowsArgumentNullException()
     {
         var board = new BoardState();

@@ -19,4 +19,20 @@ public static class Constants
     public const float CellGap = 0.08f;
     public const float TrayPieceScale = 0.7f;
     public const float DragPieceScale = 1f;
+
+    // Scoring (CLAUDE.md §3.2)
+    public const int PointsPerSingleLine = 10;
+    public const int PointsPerDoubleLine = 30;
+    public const int PointsPerTripleLine = 60;
+    public const int PointsPerQuadLine = 100;
+    public const int PointsBaseForFivePlusLines = 150;
+    public const int PointsPerAdditionalLineBeyondFive = 50;
+    public const float StreakMultiplierStep = 0.5f;
+    public const float StreakMultiplierMax = 3f;
+
+    // Clear/combo animation timing (CLAUDE.md §3.8)
+    public const float ClearFlashDurationSeconds = 0.1f;
+    public const float ClearFadeDurationSeconds = 0.25f;
+    public const float ComboScreenShakeDurationSeconds = 0.15f;
+    public const float ComboScreenShakeStrength = 0.03f;
 }
