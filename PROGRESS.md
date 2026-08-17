@@ -6,7 +6,7 @@
 
 ## Phase status
 - [x] Phase 0 — Project setup (fresh build, no GLYPH reuse — see deviations)
-- [ ] Phase 1 — Grid and pieces
+- [~] Phase 1 — Grid and pieces (pure logic layer done + tested; presentation layer — rendering, tray, drag-and-drop — in progress)
 - [ ] Phase 2 — Clearing and scoring
 - [ ] Phase 3 — kintsugi meta
 - [ ] Phase 4 — Retention and monetization
@@ -16,6 +16,15 @@
 (list of files/systems copied and any modifications made)
 
 ## Deviations from spec
+- **Piece shapes for J, T, 2×3, and J3 corrected from CLAUDE.md's literal ASCII diagram.** Precise column-by-column measurement of the diagram (§3.1) showed 16 of 20 pieces measure cleanly and unambiguously, but 4 measured shapes didn't match what their name/label implies — consistent with small single-character spacing slips in a hand-typed diagram, not deliberate design:
+  - `2×3` measured as an irregular 5-cell shape; its sibling `3×2` measured as a clean solid rectangle. Corrected `2×3` to a solid 2-wide×3-tall rectangle to match.
+  - `T` measured as `XXX/X..` (an L-tetromino, not T-shaped at all). Corrected to the canonical stem-in-the-middle tetromino `XXX/.X.`.
+  - `L`, `S`, `Z` each measured cleanly as one of the 4 distinct "missing one corner of a 2×2" trominoes (L=missing bottom-right, S=missing top-right, Z=missing bottom-left). `J` measured identical to `L` (not distinct). User approved "corrected shapes" with a preview showing J mirrored from L (`XX/.X`) — but implementing that, I caught that it's identical to Z's already-clean shape, which would make J and Z redundant. Used the better-grounded fix instead: J = the 4th remaining distinct corner-tromino, missing top-left (`.X/XX`), completing the logical set of four without colliding with Z. Documenting this refinement since it deviates from the literal preview shown, even though "corrected, not literal" was the approved direction.
+  - `J3` mirrors `L3` (vertical bar on the right instead of left, foot bottom-left instead of bottom-right), same reasoning as J/L.
+  - Final 20 piece cell sets recorded directly in the `PieceDefinition` assets (`Assets/Resources/PieceDefinitions/`) — that's the source of truth going forward, not the ASCII diagram.
+- **DDA "bottom/top quartile" (§3.7) has no population data to compare against** — this offline-first solo project has no backend computing global score quartiles. Approximated as the player's own last-10-game average vs. lifetime average (±25% ratio thresholds), the only distribution available on-device. See `DDAManager.cs` doc comment.
+- **DDA "smaller vs larger pieces" split extended beyond spec's few named examples.** §3.7 only names 4 small examples and 3 large examples; extended to the full 20-piece set following the base weight table's own natural grouping (weight-12/10 tier = small, weight-8/6/5/3 tier = large).
+- **70 EditMode tests passing, 0 compile errors** after fixing a real ambiguous-`Random`-reference bug (`UnityEngine.Random` vs `System.Random`, both in scope via `using UnityEngine`) in `PieceSpawnerTests.cs` — fixed with an explicit `using Random = System.Random;` alias.
 - **Piece set is 20 shapes, not 18.** Spec §3.1 prose says "18 shapes" but both the ASCII diagram and the spawn-weight table enumerate 20 distinct pieces (single, 1x2, 2x1, 1x3, 3x1, 1x4, 4x1, 1x5, 5x1, 2x2, L, J, S, Z, T, 2x3, 3x2, L3, J3, 3x3). Decision (user, 2026-08-17): keep all 20 as literally specified. L3/J3 are distinct taller trominoes from L/J — exact cell coordinates to be defined in Phase 1 when `PieceDefinition` assets are created.
 - **GameAnalytics game key and AppLovin MAX ad unit IDs are placeholders.** These require dashboard access I don't have. Decision (user, 2026-08-17): proceed through Phase 0 with placeholder/dummy IDs clearly marked as TODO in `AdManager`/`AnalyticsManager`; real IDs to be swapped in later once the user creates the accounts.
 - **`AudioManager.cs`, `HapticManager.cs`, `AdManager.cs`, `AnalyticsManager.cs` do not exist in GLYPH to copy from.** Verified directly against `D:\GLYPH`'s actual codebase: GLYPH is at Phase 6, and its own PROGRESS.md confirms ads/analytics SDK wiring is blocked on real account creation (a human task GLYPH hasn't done either) — `Assets/Plugins/AppLovinMAX/` and `Assets/Plugins/GameAnalytics/` in GLYPH are empty folders, no SDK ever imported, no wrapper classes written.
