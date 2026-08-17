@@ -161,4 +161,109 @@ public class PieceControllerTests
 
         Assert.IsFalse(found);
     }
+
+    [Test]
+    public void Configure_NormalEmptyBoard_DoesNotFireOnGameOver()
+    {
+        bool gameOverFired = false;
+        _controller.OnGameOver += () => gameOverFired = true;
+
+        _controller.DealNewHand();
+
+        Assert.IsFalse(gameOverFired);
+    }
+
+    [Test]
+    public void DealNewHand_CheckerboardBoardWithDominoPool_FiresOnGameOver()
+    {
+        var dominoPiece = ScriptableObject.CreateInstance<PieceDefinition>();
+        dominoPiece.pieceId = "domino";
+        dominoPiece.cells = new[] { new Vector2Int(0, 0), new Vector2Int(1, 0) };
+        dominoPiece.spawnWeight = 1;
+        var dominoSpawner = new PieceSpawner(new[] { dominoPiece }, new Random(1));
+
+        var grid = new GameObject("DominoGrid").AddComponent<GridManager>();
+        grid.BuildGrid();
+        var tray = new GameObject("DominoTray").AddComponent<PieceTrayController>();
+        tray.BuildSlots();
+        var controller = new GameObject("DominoController").AddComponent<PieceController>();
+
+        // Checkerboard fill: no two horizontally- or vertically-adjacent
+        // cells are ever both free, so a domino can never fit anywhere.
+        for (int y = 0; y < Constants.GridSize; y++)
+        {
+            for (int x = 0; x < Constants.GridSize; x++)
+            {
+                if ((x + y) % 2 == 0)
+                {
+                    grid.Board.Place(_singleCellPiece, x, y, colourId: 0);
+                }
+            }
+        }
+
+        bool gameOverFired = false;
+        controller.OnGameOver += () => gameOverFired = true;
+
+        controller.Configure(grid, tray, dominoSpawner);
+
+        Assert.IsTrue(gameOverFired);
+
+        Object.DestroyImmediate(controller.gameObject);
+        Object.DestroyImmediate(tray.gameObject);
+        Object.DestroyImmediate(grid.gameObject);
+    }
+
+    [Test]
+    public void EndDrag_PlacementLeavesRemainingHandUnplaceable_FiresOnGameOverBeforeAllThreeAreDone()
+    {
+        var dominoPiece = ScriptableObject.CreateInstance<PieceDefinition>();
+        dominoPiece.pieceId = "domino";
+        dominoPiece.cells = new[] { new Vector2Int(0, 0), new Vector2Int(1, 0) };
+        dominoPiece.spawnWeight = 1;
+        var dominoSpawner = new PieceSpawner(new[] { dominoPiece }, new Random(1));
+
+        var grid = new GameObject("DominoGrid2").AddComponent<GridManager>();
+        grid.BuildGrid();
+        var tray = new GameObject("DominoTray2").AddComponent<PieceTrayController>();
+        tray.BuildSlots();
+        var controller = new GameObject("DominoController2").AddComponent<PieceController>();
+
+        // Leave exactly one 1x2 gap at (0,0)-(1,0), the only place a
+        // domino can go — fill every other cell. After this test's own
+        // placement fills that gap too, the board is completely full, so
+        // the remaining hand trivially has nowhere left to fit.
+        for (int y = 0; y < Constants.GridSize; y++)
+        {
+            for (int x = 0; x < Constants.GridSize; x++)
+            {
+                bool isTheOneOpenGap = y == 0 && (x == 0 || x == 1);
+                if (!isTheOneOpenGap)
+                {
+                    grid.Board.Place(_singleCellPiece, x, y, colourId: 0);
+                }
+            }
+        }
+
+        controller.Configure(grid, tray, dominoSpawner);
+
+        bool gameOverFired = false;
+        controller.OnGameOver += () => gameOverFired = true;
+
+        // Target the domino's bounding-box centre (0.5, 0), not cell
+        // (0,0) itself, so the snap origin is unambiguously (0,0) rather
+        // than landing on a rounding-tie between origins 0 and -1.
+        Vector3 gapWorld = grid.transform.TransformPoint(GridManager.CellToLocalPosition(0.5f, 0f));
+        controller.BeginDrag(0, tray.Slots[0].transform.position);
+        controller.UpdateDrag(gapWorld);
+        controller.EndDrag();
+
+        Assert.IsTrue(grid.Board.IsFilled(0, 0));
+        Assert.IsNull(controller.Hand[0]);
+        Assert.IsNotNull(controller.Hand[1], "should not have auto-dealt a new hand — slots 1/2 are still occupied");
+        Assert.IsTrue(gameOverFired, "remaining hand[1]/hand[2] should have nowhere left to fit");
+
+        Object.DestroyImmediate(controller.gameObject);
+        Object.DestroyImmediate(tray.gameObject);
+        Object.DestroyImmediate(grid.gameObject);
+    }
 }

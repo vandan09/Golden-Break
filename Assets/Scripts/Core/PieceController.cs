@@ -34,6 +34,8 @@ public sealed class PieceController : MonoBehaviour
     public GridManager Grid => _grid;
     public PieceTrayController Tray => _tray;
 
+    public event System.Action OnGameOver;
+
     public void Configure(GridManager grid, PieceTrayController tray, PieceSpawner spawner)
     {
         _grid = grid;
@@ -61,6 +63,7 @@ public sealed class PieceController : MonoBehaviour
         }
 
         _tray.SetHand(_hand, _handColourIds);
+        CheckGameOver();
     }
 
     public bool TryFindSlotAt(Vector3 worldPosition, out int slotIndex)
@@ -167,6 +170,14 @@ public sealed class PieceController : MonoBehaviour
             {
                 DealNewHand();
             }
+            else
+            {
+                // CLAUDE.md §3.1: "This runs after every placement" — not
+                // only once a full new hand is dealt. A hand can already be
+                // unplaceable with slots still empty from earlier this
+                // round.
+                CheckGameOver();
+            }
         }
         else
         {
@@ -176,6 +187,14 @@ public sealed class PieceController : MonoBehaviour
         _dragView.gameObject.SetActive(false);
         _ghostView.gameObject.SetActive(false);
         _draggedSlotIndex = -1;
+    }
+
+    private void CheckGameOver()
+    {
+        if (GameOverDetector.IsGameOver(_grid.Board, _hand))
+        {
+            OnGameOver?.Invoke();
+        }
     }
 
     public bool AllPiecesPlaced()
