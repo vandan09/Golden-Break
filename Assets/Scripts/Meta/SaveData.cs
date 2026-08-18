@@ -30,6 +30,15 @@ public sealed class SaveData
     [JsonProperty("current_ceramic")]
     public CeramicProgressData CurrentCeramic;
 
+    // Not in CLAUDE.md §7.3's example JSON — a genuine gap discovered
+    // only once Phase 3 needed it. §3.5 requires the gallery to show
+    // "the total cumulative score earned across ALL games played while
+    // working on that ceramic," which needs somewhere durable to
+    // accumulate across game-overs (the same way current_ceramic itself
+    // persists), not just live in memory for one session.
+    [JsonProperty("ceramic_cumulative_score")]
+    public int CeramicCumulativeScore;
+
     [JsonProperty("gallery")]
     public List<GalleryEntryData> Gallery;
 
@@ -94,6 +103,7 @@ public sealed class SaveData
             TotalLinesCleared = 0,
             Coins = 0,
             CurrentCeramic = CeramicProgressData.CreateFresh(),
+            CeramicCumulativeScore = 0,
             Gallery = new List<GalleryEntryData>(),
             MilestonesClaimed = new List<int>(),
             StreakCount = 0,

@@ -25,6 +25,8 @@ public sealed class GameplayController : MonoBehaviour
     private const string GameplaySceneName = "Gameplay";
     private const float TrayVerticalGap = 1.5f;
     private const float CameraPaddingCells = 1.5f;
+    private const float CeramicVerticalGap = 0.6f;
+    private const float CeramicAreaHalfHeight = 1.3f;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void RegisterSceneLoadedHandler()
@@ -83,7 +85,7 @@ public sealed class GameplayController : MonoBehaviour
         grid.BuildGrid();
 
         var trayObject = new GameObject("Tray");
-        float trayY = -((Constants.GridSize * Constants.CellWorldSize) * 0.5f) - TrayVerticalGap;
+        float trayY = -GetGridHalfHeight() - TrayVerticalGap;
         trayObject.transform.position = new Vector3(0f, trayY, 0f);
         var tray = trayObject.AddComponent<PieceTrayController>();
         tray.BuildSlots();
@@ -105,6 +107,40 @@ public sealed class GameplayController : MonoBehaviour
         var gameOverObject = new GameObject("GameOverScreen");
         var gameOverScreen = gameOverObject.AddComponent<GameOverScreen>();
         gameOverScreen.Configure(pieceController);
+
+        CeramicDefinition[] ceramicPool = Resources.LoadAll<CeramicDefinition>("CeramicDefinitions");
+        if (ceramicPool.Length == 0)
+        {
+            Debug.LogError("GameplayController: no CeramicDefinition assets found in Resources/CeramicDefinitions.");
+        }
+        else
+        {
+            var ceramicObject = new GameObject("Ceramic");
+            ceramicObject.transform.position = new Vector3(0f, GetCeramicCenterY(), 0f);
+            var ceramicView = ceramicObject.AddComponent<CeramicView>();
+            ceramicView.Initialize();
+
+            var ceramicManager = new CeramicManager(saveManager.Current.CurrentCeramic, saveManager.Current.CeramicCumulativeScore);
+            var galleryManager = new GalleryManager(saveManager.Current.Gallery);
+
+            var ceramicControllerObject = new GameObject("CeramicController");
+            var ceramicController = ceramicControllerObject.AddComponent<CeramicController>();
+            ceramicController.Configure(pieceController, ceramicView, ceramicPool, ceramicManager, galleryManager, saveManager);
+        }
+    }
+
+    // Single source of truth for vertical layout, shared by both the
+    // ceramic's own placement and the camera sizing below — the Phase 1
+    // camera-clipping bug happened specifically because two places
+    // computed overlapping layout math independently and drifted apart.
+    private static float GetGridHalfHeight()
+    {
+        return (Constants.GridSize * Constants.CellWorldSize) * 0.5f;
+    }
+
+    private static float GetCeramicCenterY()
+    {
+        return GetGridHalfHeight() + CeramicVerticalGap + CeramicAreaHalfHeight;
     }
 
     private static void ConfigureCamera()
@@ -122,19 +158,23 @@ public sealed class GameplayController : MonoBehaviour
         // rather than depending on a scene file hand-edit.
         camera.orthographic = true;
 
-        float gridExtent = (Constants.GridSize * Constants.CellWorldSize) * 0.5f;
+        float gridExtent = GetGridHalfHeight();
         float trayAllowance = TrayVerticalGap + Constants.CellWorldSize;
-        float sizeForHeight = gridExtent + trayAllowance + CameraPaddingCells;
+        float contentTop = GetCeramicCenterY() + CeramicAreaHalfHeight;
+        float contentBottom = -gridExtent - trayAllowance;
+
+        float centerY = (contentTop + contentBottom) * 0.5f;
+        float sizeForHeight = ((contentTop - contentBottom) * 0.5f) + CameraPaddingCells;
 
         // A device screen is narrow (portrait), so the grid's own width
         // can be the binding constraint even though only vertical extent
-        // (grid + tray) was accounted for above — confirmed on-device:
+        // was accounted for above — confirmed on-device in Phase 1:
         // sizing for height alone clipped both the grid's right edge and
         // the tray's left edge symmetrically. camera.aspect is the actual
         // runtime viewport ratio, not a guess.
         float sizeForWidth = (gridExtent + CameraPaddingCells) / camera.aspect;
 
         camera.orthographicSize = Mathf.Max(sizeForHeight, sizeForWidth);
-        camera.transform.position = new Vector3(0f, -trayAllowance * 0.5f, camera.transform.position.z);
+        camera.transform.position = new Vector3(0f, centerY, camera.transform.position.z);
     }
 }

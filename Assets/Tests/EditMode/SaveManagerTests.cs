@@ -51,6 +51,7 @@ public class SaveManagerTests
         SaveData original = SaveData.CreateFresh("2026-08-17");
         original.BestScore = 4280;
         original.Coins = 245;
+        original.CeramicCumulativeScore = 1875;
         original.CurrentCeramic.Tier = 5;
         original.CurrentCeramic.CracksRepaired = 3;
         original.Gallery.Add(new GalleryEntryData { Tier = 1, Date = "2026-07-28", Score = 2140 });
@@ -60,6 +61,7 @@ public class SaveManagerTests
 
         Assert.AreEqual(4280, loaded.BestScore);
         Assert.AreEqual(245, loaded.Coins);
+        Assert.AreEqual(1875, loaded.CeramicCumulativeScore);
         Assert.AreEqual(5, loaded.CurrentCeramic.Tier);
         Assert.AreEqual(3, loaded.CurrentCeramic.CracksRepaired);
         Assert.AreEqual(1, loaded.Gallery.Count);
