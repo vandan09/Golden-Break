@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 
 /// <summary>
@@ -62,6 +63,19 @@ public sealed class GameplayController : MonoBehaviour
         if (FindObjectOfType<AudioManager>() == null)
         {
             new GameObject("AudioManager").AddComponent<AudioManager>();
+        }
+
+        // Without this, GraphicRaycaster alone never dispatches clicks —
+        // no uGUI Button anywhere in the scene receives input at all.
+        // Confirmed the hard way: Play Again looked fully wired (Canvas,
+        // GraphicRaycaster, Button.onClick) but silently did nothing on a
+        // real device tap, because nothing was present to route the tap
+        // to the raycaster in the first place.
+        if (FindObjectOfType<EventSystem>() == null)
+        {
+            var eventSystemObject = new GameObject("EventSystem");
+            eventSystemObject.AddComponent<EventSystem>();
+            eventSystemObject.AddComponent<StandaloneInputModule>();
         }
 
         var gridObject = new GameObject("Grid");
