@@ -60,7 +60,7 @@ public sealed class DailyChallengeUI : MonoBehaviour
         panelRect.offsetMin = Vector2.zero;
         panelRect.offsetMax = Vector2.zero;
 
-        CreateText(_panel.transform, "Daily Challenge", new Vector2(0.5f, 0.72f), TitleFontSize, UiPalette.TextPrimary);
+        CreateText(_panel.transform, Strings.DailyChallengeTitle, new Vector2(0.5f, 0.72f), TitleFontSize, UiPalette.TextPrimary);
         _statusText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.6f), StatusFontSize, UiPalette.TextSecondary);
         _ghostScoreText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.53f), StatusFontSize, UiPalette.GoldFill);
 
@@ -104,7 +104,7 @@ public sealed class DailyChallengeUI : MonoBehaviour
         rect.anchoredPosition = new Vector2(-20f, -20f);
         rect.sizeDelta = new Vector2(60f, 50f);
 
-        var label = CreateText(buttonObject.transform, "X", Vector2.zero, 24, UiPalette.TextPrimary);
+        var label = CreateText(buttonObject.transform, Strings.CloseButtonSymbol, Vector2.zero, 24, UiPalette.TextPrimary);
         var labelRect = label.GetComponent<RectTransform>();
         labelRect.anchorMin = Vector2.zero;
         labelRect.anchorMax = Vector2.one;
@@ -126,7 +126,7 @@ public sealed class DailyChallengeUI : MonoBehaviour
         rect.anchoredPosition = Vector2.zero;
         rect.sizeDelta = new Vector2(280f, 70f);
 
-        var label = CreateText(buttonObject.transform, "Play", Vector2.zero, ButtonLabelFontSize, UiPalette.TextPrimary);
+        var label = CreateText(buttonObject.transform, Strings.DailyChallengePlayButton, Vector2.zero, ButtonLabelFontSize, UiPalette.TextPrimary);
         var labelRect = label.GetComponent<RectTransform>();
         labelRect.anchorMin = Vector2.zero;
         labelRect.anchorMax = Vector2.one;
@@ -148,15 +148,15 @@ public sealed class DailyChallengeUI : MonoBehaviour
 
         if (DailyChallengeManager.IsCompletedToday(data.DailyCompleted, todayIso) && data.DailyBestScores.TryGetValue(todayIso, out int bestToday))
         {
-            _statusText.text = $"Best today: {bestToday:N0}";
+            _statusText.text = string.Format(Strings.DailyChallengeBestTodayFormat, bestToday.ToString("N0"));
         }
         else
         {
-            _statusText.text = "Not played today";
+            _statusText.text = Strings.DailyChallengeNotPlayedToday;
         }
 
         int ghostScore = DailyChallengeManager.ComputeGhostScore(today);
-        _ghostScoreText.text = $"Beat: {ghostScore:N0}";
+        _ghostScoreText.text = string.Format(Strings.DailyChallengeGhostScoreFormat, ghostScore.ToString("N0"));
 
         _panel.SetActive(true);
         if (_inputHandler != null)

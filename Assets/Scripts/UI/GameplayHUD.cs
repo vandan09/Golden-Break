@@ -143,14 +143,14 @@ public sealed class GameplayHUD : MonoBehaviour
     private void RefreshScoreTexts()
     {
         _scoreText.text = _pieceController.Score.CurrentScore.ToString("N0");
-        _bestText.text = $"BEST {_pieceController.Score.BestScore:N0}";
+        _bestText.text = string.Format(Strings.HudBestFormat, _pieceController.Score.BestScore.ToString("N0"));
     }
 
     private void RefreshCoinsTextAndButtons()
     {
         if (_coinManager != null)
         {
-            _coinsText.text = $"{_coinManager.Balance:N0} coins";
+            _coinsText.text = string.Format(Strings.HudCoinsFormat, _coinManager.Balance.ToString("N0"));
         }
 
         RefreshActionButtonInteractable();
@@ -159,10 +159,10 @@ public sealed class GameplayHUD : MonoBehaviour
     private void RefreshActionButtonInteractable()
     {
         _undoButton.interactable = _pieceController.CanUndo;
-        _undoButtonLabel.text = $"Undo ({Constants.UndoCostCoins})";
+        _undoButtonLabel.text = string.Format(Strings.HudUndoButtonFormat, Constants.UndoCostCoins);
 
         _refreshButton.interactable = _pieceController.CanRefresh;
-        _refreshButtonLabel.text = $"Refresh ({Constants.RefreshCostCoins})";
+        _refreshButtonLabel.text = string.Format(Strings.HudRefreshButtonFormat, Constants.RefreshCostCoins);
     }
 
     private void OnUndoClicked()
@@ -234,7 +234,7 @@ public sealed class GameplayHUD : MonoBehaviour
         if (result.AnyCleared && multiplier > 1f)
         {
             _streakText.gameObject.SetActive(true);
-            _streakText.text = $"×{multiplier:0.#} streak";
+            _streakText.text = string.Format(Strings.HudStreakMultiplierFormat, multiplier.ToString("0.#"));
         }
         else
         {
@@ -244,7 +244,7 @@ public sealed class GameplayHUD : MonoBehaviour
 
     private void ShowNewBestCelebration()
     {
-        _newBestText.text = "New best!";
+        _newBestText.text = Strings.HudNewBest;
         _newBestText.gameObject.SetActive(true);
         _newBestText.transform.localScale = Vector3.one * 0.7f;
 

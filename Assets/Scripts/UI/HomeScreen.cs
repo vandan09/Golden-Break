@@ -119,14 +119,14 @@ public sealed class HomeScreen : MonoBehaviour
         panelRect.offsetMin = Vector2.zero;
         panelRect.offsetMax = Vector2.zero;
 
-        CreateText(_panel.transform, "Golden Break", new Vector2(0.5f, 0.8f), TitleFontSize, UiPalette.GoldFill);
+        CreateText(_panel.transform, Strings.AppTitle, new Vector2(0.5f, 0.8f), TitleFontSize, UiPalette.GoldFill);
         _streakText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.71f), StreakFontSize, UiPalette.TextPrimary);
         _ceramicText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.65f), CeramicFontSize, UiPalette.TextSecondary);
 
-        BuildButton(_panel.transform, "Play", new Vector2(0.5f, 0.45f), OnPlayClicked);
-        BuildButton(_panel.transform, "Daily Challenge", new Vector2(0.5f, 0.35f), OnDailyChallengeClicked);
-        BuildButton(_panel.transform, "Gallery", new Vector2(0.5f, 0.25f), OnGalleryClicked);
-        BuildButton(_panel.transform, "Settings", new Vector2(0.5f, 0.15f), OnSettingsClicked);
+        BuildButton(_panel.transform, Strings.HomePlayButton, new Vector2(0.5f, 0.45f), OnPlayClicked);
+        BuildButton(_panel.transform, Strings.HomeDailyChallengeButton, new Vector2(0.5f, 0.35f), OnDailyChallengeClicked);
+        BuildButton(_panel.transform, Strings.HomeGalleryButton, new Vector2(0.5f, 0.25f), OnGalleryClicked);
+        BuildButton(_panel.transform, Strings.HomeSettingsButton, new Vector2(0.5f, 0.15f), OnSettingsClicked);
     }
 
     private static Text CreateText(Transform parent, string initialText, Vector2 anchor, int fontSize, Color colour)
@@ -196,11 +196,11 @@ public sealed class HomeScreen : MonoBehaviour
     private void Show()
     {
         SaveData data = _saveManager.Current;
-        _streakText.text = data.StreakCount > 0 ? $"{data.StreakCount} day streak" : "Start your streak today";
+        _streakText.text = data.StreakCount > 0 ? string.Format(Strings.HomeStreakActiveFormat, data.StreakCount) : Strings.HomeStreakStartPrompt;
 
         int repaired = data.CurrentCeramic.CracksRepaired;
         int total = data.CurrentCeramic.TotalCracks;
-        _ceramicText.text = $"Ceramic progress: {repaired}/{total} cracks repaired";
+        _ceramicText.text = string.Format(Strings.CeramicProgressFormat, repaired, total);
 
         _panel.SetActive(true);
         if (_inputHandler != null)

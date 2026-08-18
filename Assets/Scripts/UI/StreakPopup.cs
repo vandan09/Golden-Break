@@ -62,10 +62,10 @@ public sealed class StreakPopup : MonoBehaviour
 
     public void Show(StreakManager.StreakResult result)
     {
-        string message = $"Day {result.StreakCount} streak! +{result.CoinsAwarded} coins";
+        string message = string.Format(Strings.StreakPopupFormat, result.StreakCount, result.CoinsAwarded);
         if (result.GalleryFrameUnlocked != null)
         {
-            message += "\nNew gallery frame unlocked!";
+            message += Strings.StreakPopupFrameUnlockedSuffix;
         }
 
         _messageText.text = message;

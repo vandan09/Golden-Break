@@ -64,10 +64,10 @@ public sealed class SettingsScreen : MonoBehaviour
         BuildTitle(_panel.transform);
         BuildCloseButton(_panel.transform);
 
-        _soundToggle = BuildToggleRow(_panel.transform, "Sound", 0);
-        _musicToggle = BuildToggleRow(_panel.transform, "Music", 1);
-        _hapticsToggle = BuildToggleRow(_panel.transform, "Haptics", 2);
-        _highContrastToggle = BuildToggleRow(_panel.transform, "High contrast", 3);
+        _soundToggle = BuildToggleRow(_panel.transform, Strings.SettingsSoundLabel, 0);
+        _musicToggle = BuildToggleRow(_panel.transform, Strings.SettingsMusicLabel, 1);
+        _hapticsToggle = BuildToggleRow(_panel.transform, Strings.SettingsHapticsLabel, 2);
+        _highContrastToggle = BuildToggleRow(_panel.transform, Strings.SettingsHighContrastLabel, 3);
         BuildRemoveAdsButton(_panel.transform, 4);
 
         _soundToggle.onValueChanged.AddListener(OnSoundChanged);
@@ -87,7 +87,7 @@ public sealed class SettingsScreen : MonoBehaviour
         text.fontSize = TitleFontSize;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = UiPalette.TextPrimary;
-        text.text = "Settings";
+        text.text = Strings.SettingsTitle;
 
         var rect = textObject.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 1f);
@@ -111,7 +111,7 @@ public sealed class SettingsScreen : MonoBehaviour
         rect.anchoredPosition = new Vector2(-20f, -20f);
         rect.sizeDelta = new Vector2(60f, 50f);
 
-        BuildCenteredLabel(buttonObject.transform, "X", 24);
+        BuildCenteredLabel(buttonObject.transform, Strings.CloseButtonSymbol, 24);
     }
 
     private Toggle BuildToggleRow(Transform parent, string label, int rowIndex)
@@ -190,7 +190,7 @@ public sealed class SettingsScreen : MonoBehaviour
         rowRect.sizeDelta = new Vector2(0f, RowHeight);
 
         _removeAdsButton = rowObject;
-        _removeAdsButtonLabel = BuildCenteredLabel(rowObject.transform, "Remove ads", RowLabelFontSize);
+        _removeAdsButtonLabel = BuildCenteredLabel(rowObject.transform, Strings.SettingsRemoveAdsLabel, RowLabelFontSize);
     }
 
     private void OnRemoveAdsClicked()
@@ -218,7 +218,7 @@ public sealed class SettingsScreen : MonoBehaviour
 
         bool owned = _iapManager.IsAdsRemoved;
         _removeAdsButton.GetComponent<Button>().interactable = !owned;
-        _removeAdsButtonLabel.text = owned ? "Ads removed" : "Remove ads";
+        _removeAdsButtonLabel.text = owned ? Strings.SettingsAdsRemovedLabel : Strings.SettingsRemoveAdsLabel;
     }
 
     private void BuildCrossPromoCard(Transform parent)
@@ -236,7 +236,7 @@ public sealed class SettingsScreen : MonoBehaviour
         rect.anchoredPosition = new Vector2(0f, 40f);
         rect.sizeDelta = new Vector2(0f, 90f);
 
-        BuildCenteredLabel(cardObject.transform, "More cozy puzzles", 20);
+        BuildCenteredLabel(cardObject.transform, Strings.SettingsCrossPromoLabel, 20);
     }
 
     private static Text BuildCenteredLabel(Transform parent, string content, int fontSize)

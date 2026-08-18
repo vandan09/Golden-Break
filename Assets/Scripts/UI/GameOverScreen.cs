@@ -84,15 +84,15 @@ public sealed class GameOverScreen : MonoBehaviour
         panelRect.offsetMin = Vector2.zero;
         panelRect.offsetMax = Vector2.zero;
 
-        CreateText(_panel.transform, "GAME OVER", new Vector2(0.5f, 0.74f), TitleFontSize, UiPalette.TextPrimary);
+        CreateText(_panel.transform, Strings.GameOverTitle, new Vector2(0.5f, 0.74f), TitleFontSize, UiPalette.TextPrimary);
         _finalScoreText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.66f), FinalScoreFontSize, UiPalette.GoldFill);
         _bestScoreText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.59f), BestScoreFontSize, UiPalette.TextSecondary);
         _ceramicProgressText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.54f), CeramicProgressFontSize, UiPalette.TextSecondary);
         _milestoneText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.49f), CeramicProgressFontSize, UiPalette.GoldFill);
 
-        _continueButton = BuildButton(_panel.transform, "Watch ad to continue", new Vector2(0.5f, 0.40f), OnContinueClicked);
-        _doubleCoinsButton = BuildButton(_panel.transform, "Watch ad: double coins", new Vector2(0.5f, 0.32f), OnDoubleCoinsClicked);
-        BuildButton(_panel.transform, "Play again", new Vector2(0.5f, 0.22f), OnPlayAgainClicked);
+        _continueButton = BuildButton(_panel.transform, Strings.GameOverContinueButton, new Vector2(0.5f, 0.40f), OnContinueClicked);
+        _doubleCoinsButton = BuildButton(_panel.transform, Strings.GameOverDoubleCoinsButton, new Vector2(0.5f, 0.32f), OnDoubleCoinsClicked);
+        BuildButton(_panel.transform, Strings.GameOverPlayAgainButton, new Vector2(0.5f, 0.22f), OnPlayAgainClicked);
     }
 
     private static Text CreateText(Transform parent, string initialText, Vector2 anchor, int fontSize, Color colour)
@@ -149,19 +149,19 @@ public sealed class GameOverScreen : MonoBehaviour
         _doubleCoinsUsedThisGameOver = false;
 
         _finalScoreText.text = _pieceController.Score.CurrentScore.ToString("N0");
-        _bestScoreText.text = $"Best {_pieceController.Score.BestScore:N0}";
+        _bestScoreText.text = string.Format(Strings.GameOverBestScoreFormat, _pieceController.Score.BestScore.ToString("N0"));
 
         if (_ceramicController != null)
         {
             CeramicProgressData progress = _ceramicController.Ceramic.Progress;
-            _ceramicProgressText.text = $"Ceramic: {progress.CracksRepaired}/{progress.TotalCracks} cracks repaired";
+            _ceramicProgressText.text = string.Format(Strings.GameOverCeramicProgressFormat, progress.CracksRepaired, progress.TotalCracks);
         }
 
         _milestoneText.gameObject.SetActive(false);
         if (_saveTriggers != null && _saveTriggers.LastMilestoneResults.Count > 0)
         {
             MilestoneManager.MilestoneResult milestone = _saveTriggers.LastMilestoneResults[_saveTriggers.LastMilestoneResults.Count - 1];
-            _milestoneText.text = $"Milestone {milestone.MilestoneScore:N0} reached! +{milestone.CoinsAwarded} coins";
+            _milestoneText.text = string.Format(Strings.GameOverMilestoneReachedFormat, milestone.MilestoneScore.ToString("N0"), milestone.CoinsAwarded);
             _milestoneText.gameObject.SetActive(true);
         }
 

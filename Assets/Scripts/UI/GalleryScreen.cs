@@ -86,7 +86,7 @@ public sealed class GalleryScreen : MonoBehaviour
         rect.anchoredPosition = new Vector2(-20f, -20f);
         rect.sizeDelta = new Vector2(60f, 50f);
 
-        BuildFillCenteredText(buttonObject.transform, "X", 24, UiPalette.TextPrimary);
+        BuildFillCenteredText(buttonObject.transform, Strings.CloseButtonSymbol, 24, UiPalette.TextPrimary);
     }
 
     private void BuildTitleText(Transform parent)
@@ -98,7 +98,7 @@ public sealed class GalleryScreen : MonoBehaviour
         text.fontSize = TitleFontSize;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = UiPalette.TextPrimary;
-        text.text = "Gallery";
+        text.text = Strings.GalleryTitle;
 
         var rect = textObject.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 1f);
@@ -117,7 +117,7 @@ public sealed class GalleryScreen : MonoBehaviour
         text.fontSize = 22;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = UiPalette.TextSecondary;
-        text.text = "No completed ceramics yet - repair your first one!";
+        text.text = Strings.GalleryEmptyState;
 
         var rect = textObject.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.1f, 0.42f);
@@ -214,9 +214,9 @@ public sealed class GalleryScreen : MonoBehaviour
         thumbnailRect.sizeDelta = new Vector2(78f, 78f);
 
         string displayName = ResolveDisplayName(entry.Tier);
-        BuildLeftAlignedText(cardObject.transform, $"Tier {entry.Tier} - {displayName}", new Vector2(112f, -18f), CardTierFontSize, UiPalette.TextPrimary);
-        BuildLeftAlignedText(cardObject.transform, $"Completed {entry.Date}", new Vector2(112f, -50f), CardDetailFontSize, UiPalette.TextSecondary);
-        BuildLeftAlignedText(cardObject.transform, $"Score {entry.Score:N0}", new Vector2(112f, -78f), CardDetailFontSize, UiPalette.GoldFill);
+        BuildLeftAlignedText(cardObject.transform, string.Format(Strings.GalleryCardTierFormat, entry.Tier, displayName), new Vector2(112f, -18f), CardTierFontSize, UiPalette.TextPrimary);
+        BuildLeftAlignedText(cardObject.transform, string.Format(Strings.GalleryCardCompletedFormat, entry.Date), new Vector2(112f, -50f), CardDetailFontSize, UiPalette.TextSecondary);
+        BuildLeftAlignedText(cardObject.transform, string.Format(Strings.GalleryCardScoreFormat, entry.Score.ToString("N0")), new Vector2(112f, -78f), CardDetailFontSize, UiPalette.GoldFill);
     }
 
     private string ResolveDisplayName(int tier)
