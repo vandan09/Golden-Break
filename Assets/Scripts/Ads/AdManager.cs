@@ -24,6 +24,17 @@ public sealed class AdManager : MonoBehaviour
 
     private bool _sdkInitialized;
 
+    // CLAUDE.md §5.4/§9.3: "GDPR CMP via MAX" — AppLovin MAX's own Consent
+    // Management Platform (MaxCmpService) handles the actual dialog once
+    // the SDK is imported. Living here rather than a separate
+    // ConsentManager class: BUILD_PLAN Part 1 permits exactly 5
+    // singletons (GameManager/AudioManager/SaveManager/AdManager/
+    // AnalyticsManager), and CMP is squarely an ad-SDK concern — the real
+    // implementation will literally be a MAX SDK call from inside this
+    // class, not a standalone system.
+    public bool HasResolvedConsent { get; private set; }
+    public bool ConsentGrantedForPersonalizedAds { get; private set; }
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -36,8 +47,26 @@ public sealed class AdManager : MonoBehaviour
         DontDestroyOnLoad(gameObject);
     }
 
+    // TODO(ads-setup): replace with MaxCmpService.ShowCmpForExistingUser /
+    // HasSupportedCmp once AppLovin MAX SDK is imported. Until then,
+    // resolves immediately with the conservative default (no personalized
+    // ads) so InitializeSdk has a stable gate to check without blocking
+    // on real CMP integration.
+    public void RequestConsentIfRequired(Action onResolved)
+    {
+        HasResolvedConsent = true;
+        ConsentGrantedForPersonalizedAds = false;
+        onResolved?.Invoke();
+    }
+
     public void InitializeSdk()
     {
+        if (!HasResolvedConsent)
+        {
+            Debug.LogWarning("AdManager: InitializeSdk called before consent was resolved — call RequestConsentIfRequired first.");
+            return;
+        }
+
         // TODO(ads-setup): call AppLovin MAX's MaxSdk.InitializeSdk() here
         // once the SDK plugin is imported and RewardedAdUnitIdPlaceholder /
         // InterstitialAdUnitIdPlaceholder are replaced with real IDs.

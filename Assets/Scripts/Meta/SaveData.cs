@@ -104,6 +104,16 @@ public sealed class SaveData
     [JsonProperty("total_sessions")]
     public int TotalSessions;
 
+    // Not in CLAUDE.md §7.3's example JSON — needed to implement "Google
+    // Play In-App Review API" (BUILD_PLAN Phase 4) without ever
+    // re-prompting: Google's own guidelines require not asking again
+    // once a review flow has been shown, regardless of whether the
+    // player actually left a review (the OS itself throttles/hides the
+    // dialog after a quota, so there is no real "did they review"
+    // signal to check — only "did we ask").
+    [JsonProperty("review_requested")]
+    public bool ReviewRequested;
+
     public static SaveData CreateFresh(string todayIsoDate)
     {
         return new SaveData
@@ -133,7 +143,8 @@ public sealed class SaveData
             NotificationAsked = false,
             NotificationGranted = false,
             FirstLaunchDate = todayIsoDate,
-            TotalSessions = 0
+            TotalSessions = 0,
+            ReviewRequested = false
         };
     }
 }
