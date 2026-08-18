@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 /// <summary>
 /// Wires live gameplay events to <see cref="SaveData"/> mutation and
@@ -8,7 +9,8 @@ using System;
 /// <see cref="CeramicController"/> and <see cref="SaveManager"/>
 /// respectively — this class owns the two that don't otherwise have a
 /// natural home: game-over (best score, total games, lines cleared, DDA
-/// history, game-over coin award) and any coin balance change.
+/// history, game-over coin award, daily streak, score milestones) and any
+/// coin balance change.
 ///
 /// Depends on <see cref="SaveData"/> directly, not <see cref="SaveManager"/>
 /// — SaveManager's <c>Current</c>/<c>Save()</c> only work once its own
@@ -19,7 +21,11 @@ using System;
 /// save-request delegate keeps this class fully unit-testable and matches
 /// BUILD_PLAN Part 1's "plain C# for pure logic" rule — GameplayController
 /// wires it to the real SaveManager with <c>saveManager.Current</c> and
-/// <c>saveManager.Save</c>.
+/// <c>saveManager.Save</c>. The date is injected the same way (defaults to
+/// real UtcNow at the production call site) so streak-day-boundary logic
+/// is deterministically testable, unlike CeramicController's own inline
+/// DateTime.UtcNow call — that class is never unit-tested directly
+/// (an orchestrator, same as InputHandler), this one is.
 ///
 /// Not explicitly unsubscribed on teardown, consistent with every other
 /// event subscription already in this codebase (ScoreManager.OnNewBest in
@@ -33,13 +39,25 @@ public sealed class GameplaySaveTriggers
     private readonly CoinManager _coinManager;
     private readonly SaveData _saveData;
     private readonly Action _requestSave;
+    private readonly Func<DateTime> _nowProvider;
 
-    public GameplaySaveTriggers(PieceController pieceController, CoinManager coinManager, SaveData saveData, Action requestSave)
+    // Exposed for the game-over screen (later UI slice) to show "you
+    // earned X coins" and offer "double coins" against exactly that base
+    // amount — CLAUDE.md §4.5's "Rewarded double coins | 2x game-over
+    // amount" means the base game-over earning specifically, not streak/
+    // milestone bonuses from the same game-over (those are separate
+    // reward moments with their own UI beat).
+    public int LastGameOverCoinsAwarded { get; private set; }
+    public StreakManager.StreakResult? LastStreakResult { get; private set; }
+    public IReadOnlyList<MilestoneManager.MilestoneResult> LastMilestoneResults { get; private set; } = new List<MilestoneManager.MilestoneResult>();
+
+    public GameplaySaveTriggers(PieceController pieceController, CoinManager coinManager, SaveData saveData, Action requestSave, Func<DateTime> nowProvider = null)
     {
         _pieceController = pieceController ?? throw new ArgumentNullException(nameof(pieceController));
         _coinManager = coinManager ?? throw new ArgumentNullException(nameof(coinManager));
         _saveData = saveData ?? throw new ArgumentNullException(nameof(saveData));
         _requestSave = requestSave ?? throw new ArgumentNullException(nameof(requestSave));
+        _nowProvider = nowProvider ?? (() => DateTime.UtcNow);
 
         _pieceController.OnLinesCleared += OnLinesCleared;
         _pieceController.OnGameOver += OnGameOver;
@@ -73,8 +91,12 @@ public sealed class GameplaySaveTriggers
         _saveData.TotalGames++;
         RecordDdaScore(score.CurrentScore);
 
-        int coinsEarned = Constants.CoinsForGameOver + (isNewBest ? Constants.CoinsForNewBestBonus : 0);
-        _coinManager.Earn(coinsEarned);
+        LastGameOverCoinsAwarded = Constants.CoinsForGameOver + (isNewBest ? Constants.CoinsForNewBestBonus : 0);
+        _coinManager.Earn(LastGameOverCoinsAwarded);
+
+        DateTime today = _nowProvider();
+        ApplyStreak(today);
+        ApplyMilestones(score.CurrentScore);
 
         // Earn() above already fired OnCoinBalanceChanged synchronously,
         // which requests its own save — this explicit call is deliberate,
@@ -82,6 +104,52 @@ public sealed class GameplaySaveTriggers
         // construction, not as an incidental side effect of coinsEarned
         // always being positive today.
         _requestSave();
+    }
+
+    private void ApplyStreak(DateTime today)
+    {
+        var streak = new StreakManager(_saveData.StreakCount, _saveData.StreakLastDate);
+        StreakManager.StreakResult result = streak.RecordGameCompleted(today);
+
+        _saveData.StreakCount = streak.StreakCount;
+        _saveData.StreakLastDate = streak.LastPlayedDateIso;
+        LastStreakResult = result.StreakAdvanced ? result : (StreakManager.StreakResult?)null;
+
+        if (!result.StreakAdvanced)
+        {
+            return;
+        }
+
+        if (result.CoinsAwarded > 0)
+        {
+            _coinManager.Earn(result.CoinsAwarded);
+        }
+
+        if (result.GalleryFrameUnlocked != null && !_saveData.GalleryFramesOwned.Contains(result.GalleryFrameUnlocked))
+        {
+            _saveData.GalleryFramesOwned.Add(result.GalleryFrameUnlocked);
+        }
+    }
+
+    private void ApplyMilestones(int score)
+    {
+        List<MilestoneManager.MilestoneResult> results = MilestoneManager.CheckNewlyReached(score, _saveData.MilestonesClaimed);
+        LastMilestoneResults = results;
+
+        foreach (MilestoneManager.MilestoneResult milestone in results)
+        {
+            _coinManager.Earn(milestone.CoinsAwarded);
+
+            if (milestone.GalleryFrameUnlocked != null && !_saveData.GalleryFramesOwned.Contains(milestone.GalleryFrameUnlocked))
+            {
+                _saveData.GalleryFramesOwned.Add(milestone.GalleryFrameUnlocked);
+            }
+
+            if (milestone.ThemeUnlocked != null && !_saveData.IapThemesOwned.Contains(milestone.ThemeUnlocked))
+            {
+                _saveData.IapThemesOwned.Add(milestone.ThemeUnlocked);
+            }
+        }
     }
 
     private void OnCoinBalanceChanged(int newBalance)
