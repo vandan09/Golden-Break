@@ -50,6 +50,7 @@ public sealed class PieceController : MonoBehaviour
     private GridManager _grid;
     private PieceTrayController _tray;
     private PieceSpawner _spawner;
+    private PieceSpawner _standardSpawnerForContinue;
     private ScoreManager _scoreManager;
 
     private PieceDefinition[] _hand;
@@ -72,6 +73,10 @@ public sealed class PieceController : MonoBehaviour
     private bool _lastPlacementClearedLines;
     private bool _undoUsedThisHand;
     private bool _refreshUsedThisHand;
+
+    // CLAUDE.md §5.1: one continue per whole game (not per hand, unlike
+    // undo/refresh) — reset only by RestartGame, never by DealNewHand.
+    private bool _continueUsedThisGame;
 
     public bool IsDragging => _draggedSlotIndex >= 0;
     public bool IsGameOver { get; private set; }
@@ -96,14 +101,26 @@ public sealed class PieceController : MonoBehaviour
         !IsDragging &&
         !IsGameOver;
 
+    // CLAUDE.md §5.1: only offered once game-over has actually fired, and
+    // only once per game.
+    public bool CanContinue => IsGameOver && !_continueUsedThisGame;
+
     public event System.Action OnGameOver;
     public event System.Action<LineClearDetector.ClearResult, int> OnLinesCleared;
 
-    public void Configure(GridManager grid, PieceTrayController tray, PieceSpawner spawner, ScoreManager scoreManager)
+    // standardSpawnerForContinue defaults to the same spawner as regular
+    // dealing when not supplied — keeps every existing single-spawner
+    // call site (tests, anywhere DDA/continue distinction doesn't matter)
+    // working unchanged. GameplayController passes a genuinely separate,
+    // non-DDA-weighted instance per CLAUDE.md §5.1: "using the standard
+    // weighted pool, not the DDA-adjusted pool — the continue should feel
+    // like a genuine second chance, not an easy handout."
+    public void Configure(GridManager grid, PieceTrayController tray, PieceSpawner spawner, ScoreManager scoreManager, PieceSpawner standardSpawnerForContinue = null)
     {
         _grid = grid;
         _tray = tray;
         _spawner = spawner;
+        _standardSpawnerForContinue = standardSpawnerForContinue ?? spawner;
         _scoreManager = scoreManager;
         _scoreManager.OnNewBest += PlayNewBestFeedback;
 
@@ -122,6 +139,7 @@ public sealed class PieceController : MonoBehaviour
         _grid.RefreshAllCells();
         _scoreManager.ResetForNewGame();
         IsGameOver = false;
+        _continueUsedThisGame = false;
         DealNewHand();
     }
 
@@ -135,12 +153,12 @@ public sealed class PieceController : MonoBehaviour
         _undoUsedThisHand = false;
         _refreshUsedThisHand = false;
         _lastPlacement = null;
-        DealHandCore();
+        DealHandCore(_spawner);
     }
 
-    private void DealHandCore()
+    private void DealHandCore(PieceSpawner spawner)
     {
-        _hand = _spawner.DealHand(Constants.PieceHandSize);
+        _hand = spawner.DealHand(Constants.PieceHandSize);
         _handColourIds = new int[_hand.Length];
         for (int i = 0; i < _handColourIds.Length; i++)
         {
@@ -434,9 +452,50 @@ public sealed class PieceController : MonoBehaviour
 
         _refreshUsedThisHand = true;
         _lastPlacement = null;
-        DealHandCore();
+        DealHandCore(_spawner);
 
         return true;
+    }
+
+    // CLAUDE.md §5.1 continue mechanic: clears the bottom 2 rows (Y=6,
+    // Y=7) unconditionally — regardless of what was there, unlike a line
+    // clear which only fires on a completely full line — discards the
+    // hand that caused game-over, and deals a fresh 3 from the *standard*
+    // (non-DDA) pool. No score penalty, no crack un-repair: this only
+    // touches the board and the hand. Re-runs game-over detection
+    // afterward since clearing 16 cells could still (rarely) fail to open
+    // up a valid move for an unlucky new hand.
+    public bool TryContinue()
+    {
+        if (!CanContinue)
+        {
+            return false;
+        }
+
+        _continueUsedThisGame = true;
+        ClearBottomTwoRows();
+
+        IsGameOver = false;
+        _lastPlacement = null;
+        _undoUsedThisHand = false;
+        _refreshUsedThisHand = false;
+
+        DealHandCore(_standardSpawnerForContinue);
+
+        return true;
+    }
+
+    private void ClearBottomTwoRows()
+    {
+        int firstRow = Constants.GridSize - 2;
+        for (int y = firstRow; y < Constants.GridSize; y++)
+        {
+            for (int x = 0; x < Constants.GridSize; x++)
+            {
+                _grid.Board.ClearCell(x, y);
+                _grid.RefreshCell(x, y);
+            }
+        }
     }
 
     private PieceView CreateChildPieceView(string name)

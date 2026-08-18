@@ -101,8 +101,14 @@ public sealed class GameplayController : MonoBehaviour
         // app session too (RestartGame() reuses this same spawner
         // instance, it never gets reconstructed).
         var spawner = new PieceSpawner(pool, new System.Random(), piece => ComputeDdaWeightMultiplier(piece, saveManager));
+
+        // CLAUDE.md §5.1: continue deals from "the standard weighted
+        // pool, not the DDA-adjusted pool" — a second, independent
+        // spawner with no weight multiplier at all.
+        var standardSpawnerForContinue = new PieceSpawner(pool, new System.Random());
+
         var scoreManager = new ScoreManager(saveManager.Current.BestScore);
-        pieceController.Configure(grid, tray, spawner, scoreManager);
+        pieceController.Configure(grid, tray, spawner, scoreManager, standardSpawnerForContinue);
 
         var coinManager = new CoinManager(saveManager.Current.Coins);
 
