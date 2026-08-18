@@ -78,7 +78,9 @@ crashlytics-build.properties
 # Batch-mode run output logged at repo root during development
 /*_log.txt
 /*_log[0-9]*.txt
-/test_results.xml
+/*.log
+/test_results*.xml
+/emulator_boot_err*.txt
 
 # Claude Code session state, not project source
 /.claude/

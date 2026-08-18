@@ -39,12 +39,15 @@ Create `GoldenBreak_PROGRESS.md` at Phase 0 start:
 **Blocked on:** (nothing / description)
 
 ## Phase status
-- [ ] Phase 0 — Project setup (reuse from GLYPH)
-- [ ] Phase 1 — Grid and pieces
-- [ ] Phase 2 — Clearing and scoring
-- [ ] Phase 3 — kintsugi meta
+- [x] Phase 0 — Project setup (fresh build, no GLYPH reuse — see PROGRESS.md deviations)
+- [x] Phase 1 — Grid and pieces
+- [x] Phase 2 — Clearing and scoring
+- [x] Phase 3 — kintsugi meta
 - [ ] Phase 4 — Retention and monetization
 - [ ] Phase 5 — Polish, QA, and launch
+
+See PROGRESS.md for the live, detailed log of decisions, deviations, and verification
+evidence per phase — this checklist just mirrors its top-line status.
 
 ## Reused from GLYPH
 (list of files/systems copied and any modifications made)
