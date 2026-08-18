@@ -25,6 +25,7 @@ public sealed class CeramicController : MonoBehaviour
     private CeramicManager _ceramicManager;
     private GalleryManager _galleryManager;
     private SaveManager _saveManager;
+    private CoinManager _coinManager;
 
     public CeramicManager Ceramic => _ceramicManager;
     public GalleryManager Gallery => _galleryManager;
@@ -35,7 +36,8 @@ public sealed class CeramicController : MonoBehaviour
         CeramicDefinition[] ceramicPool,
         CeramicManager ceramicManager,
         GalleryManager galleryManager,
-        SaveManager saveManager)
+        SaveManager saveManager,
+        CoinManager coinManager)
     {
         _pieceController = pieceController;
         _view = view;
@@ -43,6 +45,7 @@ public sealed class CeramicController : MonoBehaviour
         _ceramicManager = ceramicManager;
         _galleryManager = galleryManager;
         _saveManager = saveManager;
+        _coinManager = coinManager;
 
         _pieceController.OnLinesCleared += OnLinesCleared;
 
@@ -80,6 +83,13 @@ public sealed class CeramicController : MonoBehaviour
     {
         string today = DateTime.UtcNow.ToString("yyyy-MM-dd");
         _galleryManager.AddCompletedCeramic(_ceramicManager.Progress.Tier, today, _ceramicManager.CumulativeScoreThisCeramic);
+
+        // CLAUDE.md §4.5: "Ceramic completed | 25 coins". Earn() fires
+        // CoinManager.OnBalanceChanged synchronously, which
+        // GameplaySaveTriggers already turns into its own "coin change"
+        // save — the Persist() call below (for cracks/tier/gallery state)
+        // runs immediately after, so both land in the same on-disk save.
+        _coinManager?.Earn(Constants.CoinsForCeramicCompleted);
 
         AudioManager.Instance?.PlaySound(SoundEffect.CeramicComplete);
         HapticManager.Trigger(HapticPattern.CeramicComplete);

@@ -92,9 +92,24 @@ public sealed class GameplayController : MonoBehaviour
 
         var pieceControllerObject = new GameObject("PieceController");
         var pieceController = pieceControllerObject.AddComponent<PieceController>();
-        var spawner = new PieceSpawner(pool, new System.Random());
+
+        // DDA weighting (CLAUDE.md §3.7) reads saveManager.Current live on
+        // every spawn rather than capturing fixed averages once — the same
+        // SaveManager.Current object is mutated in place by
+        // GameplaySaveTriggers.OnGameOver, so this correctly reflects
+        // updated DDA history after a "Play again" restart within the same
+        // app session too (RestartGame() reuses this same spawner
+        // instance, it never gets reconstructed).
+        var spawner = new PieceSpawner(pool, new System.Random(), piece => ComputeDdaWeightMultiplier(piece, saveManager));
         var scoreManager = new ScoreManager(saveManager.Current.BestScore);
         pieceController.Configure(grid, tray, spawner, scoreManager);
+
+        var coinManager = new CoinManager(saveManager.Current.Coins);
+
+        // Constructed for its subscription side effects only — nothing
+        // else in this method needs to hold a reference to it, same as
+        // CeramicController's own OnLinesCleared subscription pattern.
+        _ = new GameplaySaveTriggers(pieceController, coinManager, saveManager.Current, saveManager.Save);
 
         var inputHandlerObject = new GameObject("InputHandler");
         var inputHandler = inputHandlerObject.AddComponent<InputHandler>();
@@ -125,12 +140,35 @@ public sealed class GameplayController : MonoBehaviour
 
             var ceramicControllerObject = new GameObject("CeramicController");
             var ceramicController = ceramicControllerObject.AddComponent<CeramicController>();
-            ceramicController.Configure(pieceController, ceramicView, ceramicPool, ceramicManager, galleryManager, saveManager);
+            ceramicController.Configure(pieceController, ceramicView, ceramicPool, ceramicManager, galleryManager, saveManager, coinManager);
 
             var galleryScreenObject = new GameObject("GalleryScreen");
             var galleryScreen = galleryScreenObject.AddComponent<GalleryScreen>();
             galleryScreen.Configure(galleryManager, ceramicPool);
         }
+    }
+
+    // CLAUDE.md §3.7: recomputed from saveManager.Current on every call
+    // (not captured once) so DDA weighting reflects the latest game-over
+    // history even across a same-session "Play again" restart, which
+    // reuses this same PieceSpawner instance rather than reconstructing
+    // it.
+    private static float ComputeDdaWeightMultiplier(PieceDefinition piece, SaveManager saveManager)
+    {
+        System.Collections.Generic.List<int> last10 = saveManager.Current.DdaLast10Scores;
+        float last10Average = 0f;
+        if (last10 != null && last10.Count > 0)
+        {
+            float sum = 0f;
+            foreach (int score in last10)
+            {
+                sum += score;
+            }
+
+            last10Average = sum / last10.Count;
+        }
+
+        return DDAManager.GetWeightMultiplier(piece, last10Average, saveManager.Current.DdaAvgScore);
     }
 
     // Single source of truth for vertical layout, shared by both the
