@@ -22,16 +22,20 @@ public sealed class SettingsScreen : MonoBehaviour
 
     private SaveManager _saveManager;
     private InputHandler _inputHandler;
+    private IapManager _iapManager;
     private GameObject _panel;
     private Toggle _soundToggle;
     private Toggle _musicToggle;
     private Toggle _hapticsToggle;
     private Toggle _highContrastToggle;
+    private GameObject _removeAdsButton;
+    private Text _removeAdsButtonLabel;
 
-    public void Configure(SaveManager saveManager, InputHandler inputHandler)
+    public void Configure(SaveManager saveManager, InputHandler inputHandler, IapManager iapManager = null)
     {
         _saveManager = saveManager;
         _inputHandler = inputHandler;
+        _iapManager = iapManager;
 
         BuildUi();
         _panel.SetActive(false);
@@ -64,6 +68,7 @@ public sealed class SettingsScreen : MonoBehaviour
         _musicToggle = BuildToggleRow(_panel.transform, "Music", 1);
         _hapticsToggle = BuildToggleRow(_panel.transform, "Haptics", 2);
         _highContrastToggle = BuildToggleRow(_panel.transform, "High contrast", 3);
+        BuildRemoveAdsButton(_panel.transform, 4);
 
         _soundToggle.onValueChanged.AddListener(OnSoundChanged);
         _musicToggle.onValueChanged.AddListener(OnMusicChanged);
@@ -163,6 +168,59 @@ public sealed class SettingsScreen : MonoBehaviour
         return toggle;
     }
 
+    // CLAUDE.md §5.2: "Remove interstitials | ₹249 / $2.99." The one IAP
+    // entry point this screen offers directly — theme packs/coin bundles
+    // belong to a dedicated shop UI that isn't in CLAUDE.md's own file
+    // tree as a separate screen; this gives IapManager's real, tested
+    // entitlement logic an actual on-screen trigger without inventing a
+    // new screen file for it.
+    private void BuildRemoveAdsButton(Transform parent, int rowIndex)
+    {
+        var rowObject = new GameObject("Row_RemoveAds");
+        rowObject.transform.SetParent(parent, false);
+        rowObject.AddComponent<Image>().color = UiPalette.Surface;
+        var button = rowObject.AddComponent<Button>();
+        button.onClick.AddListener(OnRemoveAdsClicked);
+
+        var rowRect = rowObject.GetComponent<RectTransform>();
+        rowRect.anchorMin = new Vector2(0.1f, 1f);
+        rowRect.anchorMax = new Vector2(0.9f, 1f);
+        rowRect.pivot = new Vector2(0.5f, 1f);
+        rowRect.anchoredPosition = new Vector2(0f, -100f - (rowIndex * (RowHeight + RowSpacing)));
+        rowRect.sizeDelta = new Vector2(0f, RowHeight);
+
+        _removeAdsButton = rowObject;
+        _removeAdsButtonLabel = BuildCenteredLabel(rowObject.transform, "Remove ads", RowLabelFontSize);
+    }
+
+    private void OnRemoveAdsClicked()
+    {
+        if (_iapManager == null || _iapManager.IsAdsRemoved)
+        {
+            return;
+        }
+
+        _iapManager.Purchase(IapItem.RemoveAds, success =>
+        {
+            if (success)
+            {
+                RefreshRemoveAdsButton();
+            }
+        });
+    }
+
+    private void RefreshRemoveAdsButton()
+    {
+        if (_iapManager == null || _removeAdsButton == null)
+        {
+            return;
+        }
+
+        bool owned = _iapManager.IsAdsRemoved;
+        _removeAdsButton.GetComponent<Button>().interactable = !owned;
+        _removeAdsButtonLabel.text = owned ? "Ads removed" : "Remove ads";
+    }
+
     private void BuildCrossPromoCard(Transform parent)
     {
         var cardObject = new GameObject("CrossPromoCard");
@@ -181,7 +239,7 @@ public sealed class SettingsScreen : MonoBehaviour
         BuildCenteredLabel(cardObject.transform, "More cozy puzzles", 20);
     }
 
-    private static void BuildCenteredLabel(Transform parent, string content, int fontSize)
+    private static Text BuildCenteredLabel(Transform parent, string content, int fontSize)
     {
         var textObject = new GameObject("Label");
         textObject.transform.SetParent(parent, false);
@@ -197,6 +255,8 @@ public sealed class SettingsScreen : MonoBehaviour
         rect.anchorMax = Vector2.one;
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
+
+        return text;
     }
 
     private void OnSoundChanged(bool value)
@@ -244,6 +304,7 @@ public sealed class SettingsScreen : MonoBehaviour
         _musicToggle.SetIsOnWithoutNotify(settings.Music);
         _hapticsToggle.SetIsOnWithoutNotify(settings.Haptics);
         _highContrastToggle.SetIsOnWithoutNotify(settings.HighContrast);
+        RefreshRemoveAdsButton();
 
         _panel.SetActive(true);
         if (_inputHandler != null)

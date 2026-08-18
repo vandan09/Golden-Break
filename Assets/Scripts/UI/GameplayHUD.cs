@@ -3,37 +3,72 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Live score/best/streak display (CLAUDE.md §3.2 "always visible at the
-/// top", §3.8 streak counter). Minimal uGUI on a Screen Space Overlay
-/// canvas — layout/typography match nothing final yet (Phase 4/5), this
-/// only needs to show correct, always-current numbers.
+/// Live score/best/streak/coins HUD (CLAUDE.md §3.2 "always visible at
+/// the top", §3.8 streak counter) plus the undo/refresh buttons (§4.5,
+/// §5.1: "During gameplay (button always visible)"). Minimal uGUI on a
+/// Screen Space Overlay canvas — layout/typography match nothing final
+/// yet (Phase 4/5), this only needs to show correct, always-current
+/// numbers and working buttons.
+///
+/// Each button tries the coin-cost path first (CoinManager.TrySpend) and
+/// falls back to the rewarded-ad path only when coins are insufficient —
+/// §4.5 offers both, and auto-falling-back avoids needing a second
+/// "or watch an ad instead" dialog for what's structurally one action.
 /// </summary>
 public sealed class GameplayHUD : MonoBehaviour
 {
     private const int ScoreFontSize = 42;
     private const int BestFontSize = 24;
+    private const int CoinsFontSize = 24;
     private const int StreakFontSize = 22;
     private const int NewBestFontSize = 30;
+    private const int ActionButtonLabelFontSize = 16;
     private const float NewBestVisibleSeconds = 1.6f;
 
     private PieceController _pieceController;
+    private CoinManager _coinManager;
+    private RewardedAdController _rewardedAdController;
 
     private Text _scoreText;
     private Text _bestText;
+    private Text _coinsText;
     private Text _streakText;
     private Text _newBestText;
+    private Button _undoButton;
+    private Text _undoButtonLabel;
+    private Button _refreshButton;
+    private Text _refreshButtonLabel;
 
-    public void Configure(PieceController pieceController, SaveManager saveManager)
+    public void Configure(PieceController pieceController, SaveManager saveManager, CoinManager coinManager = null, RewardedAdController rewardedAdController = null)
     {
         _pieceController = pieceController;
+        _coinManager = coinManager;
+        _rewardedAdController = rewardedAdController;
 
         BuildUi();
 
         _pieceController.Score.OnScoreChanged += _ => RefreshScoreTexts();
         _pieceController.Score.OnNewBest += ShowNewBestCelebration;
         _pieceController.OnLinesCleared += OnLinesCleared;
+        if (_coinManager != null)
+        {
+            _coinManager.OnBalanceChanged += _ => RefreshCoinsTextAndButtons();
+        }
 
         RefreshScoreTexts();
+        RefreshCoinsTextAndButtons();
+    }
+
+    private void Update()
+    {
+        // CanUndo/CanRefresh depend on drag state, hand-placement state,
+        // and game-over state that can change from several different
+        // call sites (EndDrag, DealNewHand, TryContinue, RestartGame) —
+        // polling two cheap booleans here is simpler and more robust than
+        // trying to hook every single one, the same narrow exception
+        // InputHandler's own doc comment already carves out of "no logic
+        // in Update() that could be event-driven."
+        RefreshActionButtonInteractable();
     }
 
     private void BuildUi()
@@ -47,11 +82,15 @@ public sealed class GameplayHUD : MonoBehaviour
 
         _scoreText = CreateText(canvasObject.transform, "ScoreText", new Vector2(0f, 1f), new Vector2(24f, -24f), ScoreFontSize, TextAnchor.UpperLeft, UiPalette.TextPrimary);
         _bestText = CreateText(canvasObject.transform, "BestText", new Vector2(1f, 1f), new Vector2(-24f, -24f), BestFontSize, TextAnchor.UpperRight, UiPalette.TextSecondary);
+        _coinsText = CreateText(canvasObject.transform, "CoinsText", new Vector2(1f, 1f), new Vector2(-24f, -52f), CoinsFontSize, TextAnchor.UpperRight, UiPalette.GoldFill);
         _streakText = CreateText(canvasObject.transform, "StreakText", new Vector2(0f, 1f), new Vector2(24f, -78f), StreakFontSize, TextAnchor.UpperLeft, UiPalette.GoldFill);
         _newBestText = CreateText(canvasObject.transform, "NewBestText", new Vector2(0.5f, 1f), new Vector2(0f, -130f), NewBestFontSize, TextAnchor.UpperCenter, UiPalette.GoldFill);
 
         _streakText.gameObject.SetActive(false);
         _newBestText.gameObject.SetActive(false);
+
+        (_undoButton, _undoButtonLabel) = BuildActionButton(canvasObject.transform, "UndoButton", new Vector2(0f, 0f), new Vector2(24f, 24f), OnUndoClicked);
+        (_refreshButton, _refreshButtonLabel) = BuildActionButton(canvasObject.transform, "RefreshButton", new Vector2(0f, 0f), new Vector2(24f + 160f + 12f, 24f), OnRefreshClicked);
     }
 
     private static Text CreateText(Transform parent, string name, Vector2 anchor, Vector2 anchoredPosition, int fontSize, TextAnchor alignment, Color colour)
@@ -76,10 +115,88 @@ public sealed class GameplayHUD : MonoBehaviour
         return text;
     }
 
+    private (Button, Text) BuildActionButton(Transform parent, string name, Vector2 anchor, Vector2 anchoredPosition, UnityEngine.Events.UnityAction onClick)
+    {
+        var buttonObject = new GameObject(name);
+        buttonObject.transform.SetParent(parent, false);
+        buttonObject.AddComponent<Image>().color = UiPalette.Surface;
+        var button = buttonObject.AddComponent<Button>();
+        button.onClick.AddListener(onClick);
+
+        var rect = buttonObject.GetComponent<RectTransform>();
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.pivot = anchor;
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = new Vector2(160f, 56f);
+
+        var label = CreateText(buttonObject.transform, "Label", Vector2.zero, Vector2.zero, ActionButtonLabelFontSize, TextAnchor.MiddleCenter, UiPalette.TextPrimary);
+        var labelRect = label.GetComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        return (button, label);
+    }
+
     private void RefreshScoreTexts()
     {
         _scoreText.text = _pieceController.Score.CurrentScore.ToString("N0");
         _bestText.text = $"BEST {_pieceController.Score.BestScore:N0}";
+    }
+
+    private void RefreshCoinsTextAndButtons()
+    {
+        if (_coinManager != null)
+        {
+            _coinsText.text = $"{_coinManager.Balance:N0} coins";
+        }
+
+        RefreshActionButtonInteractable();
+    }
+
+    private void RefreshActionButtonInteractable()
+    {
+        _undoButton.interactable = _pieceController.CanUndo;
+        _undoButtonLabel.text = $"Undo ({Constants.UndoCostCoins})";
+
+        _refreshButton.interactable = _pieceController.CanRefresh;
+        _refreshButtonLabel.text = $"Refresh ({Constants.RefreshCostCoins})";
+    }
+
+    private void OnUndoClicked()
+    {
+        if (!_pieceController.CanUndo)
+        {
+            return;
+        }
+
+        if (_coinManager != null && _coinManager.TrySpend(Constants.UndoCostCoins))
+        {
+            _pieceController.TryUndo();
+        }
+        else
+        {
+            _rewardedAdController?.RequestFreeUndo(_ => { });
+        }
+    }
+
+    private void OnRefreshClicked()
+    {
+        if (!_pieceController.CanRefresh)
+        {
+            return;
+        }
+
+        if (_coinManager != null && _coinManager.TrySpend(Constants.RefreshCostCoins))
+        {
+            _pieceController.TryRefresh();
+        }
+        else
+        {
+            _rewardedAdController?.RequestFreeRefresh(_ => { });
+        }
     }
 
     private void OnLinesCleared(LineClearDetector.ClearResult result, int pointsAwarded)

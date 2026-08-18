@@ -4,7 +4,9 @@ using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Self-bootstraps the Gameplay scene: grid, tray, HUD, game-over screen,
-/// and (as of Phase 3) the kintsugi ceramic + gallery. Loads the
+/// kintsugi ceramic + gallery (Phase 3), and (Phase 4) the full retention/
+/// monetization wiring — Home, Settings, Daily Challenge, undo/refresh,
+/// continue, rewarded ads, interstitials, and IAP. Loads the
 /// <see cref="PieceDefinition"/> and <see cref="CeramicDefinition"/> pools
 /// and wires everything together, entirely at runtime (no hand-authored
 /// scene objects to edit blind without an interactive Editor session —
@@ -67,6 +69,16 @@ public sealed class GameplayController : MonoBehaviour
             new GameObject("AudioManager").AddComponent<AudioManager>();
         }
 
+        if (FindObjectOfType<AdManager>() == null)
+        {
+            new GameObject("AdManager").AddComponent<AdManager>();
+        }
+
+        if (FindObjectOfType<AnalyticsManager>() == null)
+        {
+            new GameObject("AnalyticsManager").AddComponent<AnalyticsManager>();
+        }
+
         // Without this, GraphicRaycaster alone never dispatches clicks —
         // no uGUI Button anywhere in the scene receives input at all.
         // Confirmed the hard way: Play Again looked fully wired (Canvas,
@@ -115,19 +127,39 @@ public sealed class GameplayController : MonoBehaviour
         // Constructed for its subscription side effects only — nothing
         // else in this method needs to hold a reference to it, same as
         // CeramicController's own OnLinesCleared subscription pattern.
-        _ = new GameplaySaveTriggers(pieceController, coinManager, saveManager.Current, saveManager.Save);
+        var saveTriggers = new GameplaySaveTriggers(pieceController, coinManager, saveManager.Current, saveManager.Save);
 
         var inputHandlerObject = new GameObject("InputHandler");
         var inputHandler = inputHandlerObject.AddComponent<InputHandler>();
         inputHandler.Configure(pieceController, Camera.main);
 
+        var rewardedAdController = new RewardedAdController(
+            (placement, onReward, onFailure) => AdManager.Instance?.ShowRewarded(placement, onReward, onFailure),
+            pieceController,
+            coinManager);
+
+        var interstitialController = new InterstitialController(
+            saveManager.Current,
+            () => AdManager.Instance?.ShowInterstitial(() => { }));
+
+        var iapManager = new IapManager(
+            saveManager.Current,
+            coinManager,
+            saveManager.Save,
+            (storeItemId, onSuccess, onFailure) =>
+            {
+                // TODO(iap-setup): no store SDK integrated yet (see
+                // IapManager's own doc comment) — always reports
+                // unavailable rather than granting a fake entitlement.
+                onFailure("no IAP SDK integrated yet");
+            });
+
         var hudObject = new GameObject("GameplayHUD");
         var hud = hudObject.AddComponent<GameplayHUD>();
-        hud.Configure(pieceController, saveManager);
+        hud.Configure(pieceController, saveManager, coinManager, rewardedAdController);
 
-        var gameOverObject = new GameObject("GameOverScreen");
-        var gameOverScreen = gameOverObject.AddComponent<GameOverScreen>();
-        gameOverScreen.Configure(pieceController);
+        CeramicController ceramicController = null;
+        GalleryScreen galleryScreen = null;
 
         CeramicDefinition[] ceramicPool = Resources.LoadAll<CeramicDefinition>("CeramicDefinitions");
         if (ceramicPool.Length == 0)
@@ -145,13 +177,44 @@ public sealed class GameplayController : MonoBehaviour
             var galleryManager = new GalleryManager(saveManager.Current.Gallery);
 
             var ceramicControllerObject = new GameObject("CeramicController");
-            var ceramicController = ceramicControllerObject.AddComponent<CeramicController>();
+            ceramicController = ceramicControllerObject.AddComponent<CeramicController>();
             ceramicController.Configure(pieceController, ceramicView, ceramicPool, ceramicManager, galleryManager, saveManager, coinManager);
 
             var galleryScreenObject = new GameObject("GalleryScreen");
-            var galleryScreen = galleryScreenObject.AddComponent<GalleryScreen>();
-            galleryScreen.Configure(galleryManager, ceramicPool);
+            galleryScreen = galleryScreenObject.AddComponent<GalleryScreen>();
+            galleryScreen.Configure(galleryManager, ceramicPool, inputHandler);
         }
+
+        var streakPopupObject = new GameObject("StreakPopup");
+        var streakPopup = streakPopupObject.AddComponent<StreakPopup>();
+        streakPopup.Configure();
+
+        var gameOverObject = new GameObject("GameOverScreen");
+        var gameOverScreen = gameOverObject.AddComponent<GameOverScreen>();
+        gameOverScreen.Configure(pieceController, saveTriggers, rewardedAdController, interstitialController, streakPopup, ceramicController);
+
+        var settingsScreenObject = new GameObject("SettingsScreen");
+        var settingsScreen = settingsScreenObject.AddComponent<SettingsScreen>();
+        settingsScreen.Configure(saveManager, inputHandler, iapManager);
+
+        var dailyChallengeUiObject = new GameObject("DailyChallengeUI");
+        var dailyChallengeUi = dailyChallengeUiObject.AddComponent<DailyChallengeUI>();
+        dailyChallengeUi.Configure(saveManager, inputHandler, () => StartDailyChallenge(pieceController, pool));
+
+        var homeScreenObject = new GameObject("HomeScreen");
+        var homeScreen = homeScreenObject.AddComponent<HomeScreen>();
+        homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi);
+    }
+
+    // CLAUDE.md §4.2: builds a fresh seeded spawner for *today* and swaps
+    // the whole PieceController session onto it — see
+    // PieceController.StartDailyChallenge's own doc comment for why the
+    // seeded stream needs to hold for the entire session, not just the
+    // first hand.
+    private static void StartDailyChallenge(PieceController pieceController, PieceDefinition[] pool)
+    {
+        PieceSpawner dailySpawner = DailyChallengeManager.CreateSpawner(pool, System.DateTime.UtcNow);
+        pieceController.StartDailyChallenge(dailySpawner);
     }
 
     // CLAUDE.md §3.7: recomputed from saveManager.Current on every call
