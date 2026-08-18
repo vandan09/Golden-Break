@@ -1,0 +1,64 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fefbd6ab59aeb29458f8ab9c95154863, type: 3}
+  m_Name: tier6
+  m_EditorClassIdentifier: 
+  tier: 6
+  displayName: Large bowl
+  silhouette: {fileID: 0}
+  cracks:
+  - controlPoints:
+    - {x: 15, y: 0}
+    - {x: 39.75, y: 8}
+    - {x: 64.5, y: -8}
+    - {x: 90, y: 0}
+  - controlPoints:
+    - {x: 11.490666, y: 9.641813}
+    - {x: 25.307968, y: 31.679163}
+    - {x: 54.552166, y: 35.331444}
+    - {x: 68.944, y: 57.850883}
+  - controlPoints:
+    - {x: 2.6047235, y: 14.772116}
+    - {x: -0.975945, y: 40.535297}
+    - {x: 19.078773, y: 62.130917}
+    - {x: 15.62834, y: 88.6327}
+  - controlPoints:
+    - {x: -7.500001, y: 12.990381}
+    - {x: -26.803205, y: 30.424511}
+    - {x: -25.3218, y: 59.85864}
+    - {x: -45.000004, y: 77.94228}
+  - controlPoints:
+    - {x: -14.095389, y: 5.1303034}
+    - {x: -40.088943, y: 6.0777626}
+    - {x: -57.874016, y: 29.577847}
+    - {x: -84.572334, y: 30.781818}
+  - controlPoints:
+    - {x: -14.095389, y: -5.1303024}
+    - {x: -34.616623, y: -21.112843}
+    - {x: -63.346336, y: -14.54276}
+    - {x: -84.572334, y: -30.781815}
+  - controlPoints:
+    - {x: -7.4999986, y: -12.990381}
+    - {x: -12.946793, y: -38.42451}
+    - {x: -39.1782, y: -51.858643}
+    - {x: -44.999992, y: -77.94229}
+  - controlPoints:
+    - {x: 2.6047223, y: -14.772116}
+    - {x: 14.780975, y: -37.756924}
+    - {x: 3.321844, y: -64.90929}
+    - {x: 15.628333, y: -88.6327}
+  - controlPoints:
+    - {x: 11.4906645, y: -9.641816}
+    - {x: 35.592564, y: -19.422459}
+    - {x: 44.267555, y: -47.588165}
+    - {x: 68.943985, y: -57.8509}
+  totalCracks: 9

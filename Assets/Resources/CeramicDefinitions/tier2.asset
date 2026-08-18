@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fefbd6ab59aeb29458f8ab9c95154863, type: 3}
+  m_Name: tier2
+  m_EditorClassIdentifier: 
+  tier: 2
+  displayName: Tea cup
+  silhouette: {fileID: 0}
+  cracks:
+  - controlPoints:
+    - {x: 15, y: 0}
+    - {x: 39.75, y: 8}
+    - {x: 64.5, y: -8}
+    - {x: 90, y: 0}
+  - controlPoints:
+    - {x: 4.6352544, y: 14.265848}
+    - {x: 4.674972, y: 40.276634}
+    - {x: 27.540047, y: 58.87101}
+    - {x: 27.811527, y: 85.595085}
+  - controlPoints:
+    - {x: -12.135256, y: 8.816778}
+    - {x: -36.86071, y: 16.892326}
+    - {x: -47.47932, y: 44.38428}
+    - {x: -72.81154, y: 52.900665}
+  - controlPoints:
+    - {x: -12.135256, y: -8.816777}
+    - {x: -27.456146, y: -29.836597}
+    - {x: -56.883884, y: -31.440006}
+    - {x: -72.81154, y: -52.90066}
+  - controlPoints:
+    - {x: 4.635257, y: -14.265847}
+    - {x: 19.891884, y: -35.33236}
+    - {x: 12.323153, y: -63.815285}
+    - {x: 27.81154, y: -85.595085}
+  totalCracks: 5

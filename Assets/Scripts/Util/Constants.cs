@@ -35,4 +35,10 @@ public static class Constants
     public const float ClearFadeDurationSeconds = 0.25f;
     public const float ComboScreenShakeDurationSeconds = 0.15f;
     public const float ComboScreenShakeStrength = 0.03f;
+
+    // Kintsugi meta (CLAUDE.md §3.4)
+    public const float GoldFlowAnimationSeconds = 0.5f;
+    public const float CeramicCompletionPauseSeconds = 1f;
+    public const float CeramicCelebrationDurationSeconds = 1.4f;
+    public const float CeramicWorldScale = 0.012f;
 }

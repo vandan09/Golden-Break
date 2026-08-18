@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fefbd6ab59aeb29458f8ab9c95154863, type: 3}
+  m_Name: tier1
+  m_EditorClassIdentifier: 
+  tier: 1
+  displayName: Simple bowl
+  silhouette: {fileID: 0}
+  cracks:
+  - controlPoints:
+    - {x: 15, y: 0}
+    - {x: 39.75, y: 8}
+    - {x: 64.5, y: -8}
+    - {x: 90, y: 0}
+  - controlPoints:
+    - {x: -0.0000006556708, y: 15}
+    - {x: -8.000002, y: 39.75}
+    - {x: 7.999997, y: 64.5}
+    - {x: -0.000003934025, y: 90}
+  - controlPoints:
+    - {x: -15, y: -0.0000013113416}
+    - {x: -39.75, y: -8.000004}
+    - {x: -64.5, y: 7.9999943}
+    - {x: -90, y: -0.00000786805}
+  - controlPoints:
+    - {x: 0.00000017887321, y: -15}
+    - {x: 8, y: -39.75}
+    - {x: -7.999999, y: -64.5}
+    - {x: 0.0000010732392, y: -90}
+  totalCracks: 4
