@@ -122,6 +122,23 @@ public sealed class GameplayController : MonoBehaviour
         var scoreManager = new ScoreManager(saveManager.Current.BestScore);
         pieceController.Configure(grid, tray, spawner, scoreManager, standardSpawnerForContinue);
 
+        // Keeps regular play and a Daily Challenge session genuinely
+        // independent (see GameModeSwitcher's own doc comment) — a real
+        // gap caught on-device where opening Daily Challenge silently
+        // wiped an in-progress regular game with no way back.
+        var gameModeSwitcher = new GameModeSwitcher(
+            pieceController,
+            spawner,
+            handsAlreadyDealt =>
+            {
+                PieceSpawner dailySpawner = DailyChallengeManager.CreateSpawner(pool, System.DateTime.UtcNow);
+                for (int i = 0; i < handsAlreadyDealt; i++)
+                {
+                    dailySpawner.DealHand(Constants.PieceHandSize);
+                }
+                return dailySpawner;
+            });
+
         var coinManager = new CoinManager(saveManager.Current.Coins);
 
         // Constructed for its subscription side effects only — nothing
@@ -203,11 +220,11 @@ public sealed class GameplayController : MonoBehaviour
 
         var dailyChallengeUiObject = new GameObject("DailyChallengeUI");
         var dailyChallengeUi = dailyChallengeUiObject.AddComponent<DailyChallengeUI>();
-        dailyChallengeUi.Configure(saveManager, inputHandler, () => StartDailyChallenge(pieceController, pool));
+        dailyChallengeUi.Configure(saveManager, inputHandler, gameModeSwitcher.StartOrResumeDailyChallenge);
 
         var homeScreenObject = new GameObject("HomeScreen");
         var homeScreen = homeScreenObject.AddComponent<HomeScreen>();
-        homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi);
+        homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi, gameModeSwitcher.ResumeOrStartRegularGame);
 
         // Real gap caught on-device: no way back to the main menu or to
         // exit once Play was tapped, and Gallery/Settings/Daily Challenge
@@ -222,17 +239,6 @@ public sealed class GameplayController : MonoBehaviour
         var backButtonRouterObject = new GameObject("BackButtonRouter");
         var backButtonRouter = backButtonRouterObject.AddComponent<BackButtonRouter>();
         backButtonRouter.Configure(homeScreen, galleryScreen, settingsScreen, dailyChallengeUi);
-    }
-
-    // CLAUDE.md §4.2: builds a fresh seeded spawner for *today* and swaps
-    // the whole PieceController session onto it — see
-    // PieceController.StartDailyChallenge's own doc comment for why the
-    // seeded stream needs to hold for the entire session, not just the
-    // first hand.
-    private static void StartDailyChallenge(PieceController pieceController, PieceDefinition[] pool)
-    {
-        PieceSpawner dailySpawner = DailyChallengeManager.CreateSpawner(pool, System.DateTime.UtcNow);
-        pieceController.StartDailyChallenge(dailySpawner);
     }
 
     // CLAUDE.md §3.7: recomputed from saveManager.Current on every call

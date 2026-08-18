@@ -88,6 +88,14 @@ public sealed class PieceController : MonoBehaviour
     private PieceSpawner _activeSpawner;
     private bool _isDailyChallengeSession;
 
+    // How many hands have been dealt from _activeSpawner this session —
+    // needed to resync a seeded daily-challenge spawner's RNG position
+    // when resuming from a snapshot (see RestoreSnapshot): a fresh
+    // System.Random(seed) always starts at the beginning of the
+    // sequence, so the caller fast-forwards it by re-dealing (and
+    // discarding) this many hands before restoring.
+    private int _handsDealtThisSession;
+
     public bool IsDragging => _draggedSlotIndex >= 0;
     public bool IsGameOver { get; private set; }
     public bool IsDailyChallengeSession => _isDailyChallengeSession;
@@ -188,6 +196,7 @@ public sealed class PieceController : MonoBehaviour
         _scoreManager.ResetForNewGame();
         IsGameOver = false;
         _continueUsedThisGame = false;
+        _handsDealtThisSession = 0;
         DealNewHand();
         OnGameStarted?.Invoke();
     }
@@ -207,6 +216,7 @@ public sealed class PieceController : MonoBehaviour
 
     private void DealHandCore(PieceSpawner spawner)
     {
+        _handsDealtThisSession++;
         _hand = spawner.DealHand(Constants.PieceHandSize);
         _handColourIds = new int[_hand.Length];
         for (int i = 0; i < _handColourIds.Length; i++)
@@ -545,6 +555,78 @@ public sealed class PieceController : MonoBehaviour
                 _grid.RefreshCell(x, y);
             }
         }
+    }
+
+    // Regular play and a Daily Challenge session (CLAUDE.md §4.2) need to
+    // be genuinely independent sessions, each resumable from exactly
+    // where it was left — not one silently wiping the other, which was a
+    // real gap caught on-device (see PROGRESS.md). Captures everything
+    // needed to reproduce the board, hand, and score exactly; the caller
+    // (GameModeSwitcher) is responsible for holding onto snapshots and
+    // deciding when to capture/restore.
+    public sealed class GameStateSnapshot
+    {
+        public int[] BoardColourIds;
+        public PieceDefinition[] Hand;
+        public int[] HandColourIds;
+        public int CurrentScore;
+        public float StreakMultiplier;
+        public bool IsGameOver;
+        public bool ContinueUsedThisGame;
+        public int HandsDealtThisSession;
+    }
+
+    public GameStateSnapshot CaptureSnapshot()
+    {
+        return new GameStateSnapshot
+        {
+            BoardColourIds = _grid.Board.SnapshotColourIds(),
+            Hand = (PieceDefinition[])_hand.Clone(),
+            HandColourIds = (int[])_handColourIds.Clone(),
+            CurrentScore = _scoreManager.CurrentScore,
+            StreakMultiplier = _scoreManager.StreakMultiplier,
+            IsGameOver = IsGameOver,
+            ContinueUsedThisGame = _continueUsedThisGame,
+            HandsDealtThisSession = _handsDealtThisSession
+        };
+    }
+
+    // activeSpawner must already be positioned correctly for this
+    // snapshot (see GameModeSwitcher — a seeded daily-challenge spawner
+    // needs fast-forwarding by HandsDealtThisSession hands first, since a
+    // fresh System.Random(seed) always restarts at the beginning of the
+    // sequence). Undo/refresh-this-hand eligibility deliberately resets
+    // rather than being part of the snapshot — a minor, documented
+    // simplification: the alternative (also snapshotting those) is more
+    // state to carry for a corner case (undo/refresh exactly at the
+    // moment of switching modes) with little practical impact.
+    public void RestoreSnapshot(GameStateSnapshot snapshot, PieceSpawner activeSpawner, bool isDailyChallengeSession)
+    {
+        if (snapshot == null)
+        {
+            throw new System.ArgumentNullException(nameof(snapshot));
+        }
+
+        _activeSpawner = activeSpawner;
+        _isDailyChallengeSession = isDailyChallengeSession;
+        _handsDealtThisSession = snapshot.HandsDealtThisSession;
+
+        _grid.Board.RestoreColourIds(snapshot.BoardColourIds);
+        _grid.RefreshAllCells();
+
+        _hand = (PieceDefinition[])snapshot.Hand.Clone();
+        _handColourIds = (int[])snapshot.HandColourIds.Clone();
+        _tray.SetHand(_hand, _handColourIds);
+
+        _scoreManager.RestoreState(snapshot.CurrentScore, snapshot.StreakMultiplier);
+
+        IsGameOver = snapshot.IsGameOver;
+        _continueUsedThisGame = snapshot.ContinueUsedThisGame;
+        _undoUsedThisHand = false;
+        _refreshUsedThisHand = false;
+        _lastPlacement = null;
+
+        OnGameStarted?.Invoke();
     }
 
     private PieceView CreateChildPieceView(string name)

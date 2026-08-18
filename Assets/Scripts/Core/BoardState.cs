@@ -102,6 +102,28 @@ public sealed class BoardState
         }
     }
 
+    // Regular play and a Daily Challenge session (CLAUDE.md §4.2) need to
+    // be genuinely independent — switching to one must not silently wipe
+    // the other's board. Captures/restores the raw cell contents so
+    // PieceController can snapshot a session before switching away and
+    // restore it exactly when switching back.
+    public int[] SnapshotColourIds()
+    {
+        var copy = new int[_cellColourId.Length];
+        Array.Copy(_cellColourId, copy, _cellColourId.Length);
+        return copy;
+    }
+
+    public void RestoreColourIds(int[] colourIds)
+    {
+        if (colourIds == null || colourIds.Length != _cellColourId.Length)
+        {
+            throw new ArgumentException($"BoardState: snapshot must contain exactly {_cellColourId.Length} cells.", nameof(colourIds));
+        }
+
+        Array.Copy(colourIds, _cellColourId, _cellColourId.Length);
+    }
+
     private static void AssertInBounds(int x, int y)
     {
         Debug.Assert(x >= 0 && x < Constants.GridSize && y >= 0 && y < Constants.GridSize,

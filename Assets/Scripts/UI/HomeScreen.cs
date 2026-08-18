@@ -31,18 +31,26 @@ public sealed class HomeScreen : MonoBehaviour
     private GalleryScreen _galleryScreen;
     private SettingsScreen _settingsScreen;
     private DailyChallengeUI _dailyChallengeUI;
+    private Action _onPlayClicked;
     private Func<DateTime> _nowProvider;
 
     private GameObject _panel;
     private Text _streakText;
     private Text _ceramicText;
 
+    // onPlayClicked lets the composition root (GameplayController) keep
+    // regular play and Daily Challenge as independent, resumable sessions
+    // (see GameModeSwitcher) — Home itself has no business knowing about
+    // PieceController or spawners, it only needs to say "the player wants
+    // to (re)enter the regular game" and let the caller decide what that
+    // means.
     public void Configure(
         SaveManager saveManager,
         InputHandler inputHandler,
         GalleryScreen galleryScreen,
         SettingsScreen settingsScreen,
         DailyChallengeUI dailyChallengeUI,
+        Action onPlayClicked = null,
         Func<DateTime> nowProvider = null)
     {
         _saveManager = saveManager;
@@ -50,6 +58,7 @@ public sealed class HomeScreen : MonoBehaviour
         _galleryScreen = galleryScreen;
         _settingsScreen = settingsScreen;
         _dailyChallengeUI = dailyChallengeUI;
+        _onPlayClicked = onPlayClicked;
         _nowProvider = nowProvider ?? (() => DateTime.UtcNow);
 
         BuildUi();
@@ -182,6 +191,7 @@ public sealed class HomeScreen : MonoBehaviour
     private void OnPlayClicked()
     {
         Hide();
+        _onPlayClicked?.Invoke();
     }
 
     // Each of these hides Home *first* — real bug caught on-device:
