@@ -23,6 +23,7 @@ public sealed class GameplayHUD : MonoBehaviour
     private const int StreakFontSize = 22;
     private const int NewBestFontSize = 30;
     private const int ActionButtonLabelFontSize = 16;
+    private const int DailyChallengeBadgeFontSize = 20;
     private const float NewBestVisibleSeconds = 1.6f;
 
     private PieceController _pieceController;
@@ -34,6 +35,7 @@ public sealed class GameplayHUD : MonoBehaviour
     private Text _coinsText;
     private Text _streakText;
     private Text _newBestText;
+    private Text _dailyChallengeBadge;
     private Button _undoButton;
     private Text _undoButtonLabel;
     private Button _refreshButton;
@@ -57,6 +59,7 @@ public sealed class GameplayHUD : MonoBehaviour
         _pieceController.Score.OnScoreChanged += _ => RefreshScoreTexts();
         _pieceController.Score.OnNewBest += ShowNewBestCelebration;
         _pieceController.OnLinesCleared += OnLinesCleared;
+        _pieceController.OnGameStarted += RefreshDailyChallengeBadge;
         if (_coinManager != null)
         {
             _coinManager.OnBalanceChanged += _ => RefreshCoinsTextAndButtons();
@@ -64,6 +67,18 @@ public sealed class GameplayHUD : MonoBehaviour
 
         RefreshScoreTexts();
         RefreshCoinsTextAndButtons();
+        RefreshDailyChallengeBadge();
+    }
+
+    // Real gap caught on-device: a Daily Challenge session and a regular
+    // game looked completely identical once you were actually in the
+    // grid — same HUD, same-looking board, only the underlying piece
+    // sequence differs (seeded vs DDA-weighted). Player had no way to
+    // tell them apart, which read as "Play and Daily Challenge open the
+    // same thing."
+    private void RefreshDailyChallengeBadge()
+    {
+        _dailyChallengeBadge.gameObject.SetActive(_pieceController.IsDailyChallengeSession);
     }
 
     // HomeScreen is constructed after GameplayHUD in GameplayController's
@@ -103,9 +118,12 @@ public sealed class GameplayHUD : MonoBehaviour
         _coinsText = CreateText(canvasObject.transform, "CoinsText", new Vector2(1f, 1f), new Vector2(-24f, -52f), CoinsFontSize, TextAnchor.UpperRight, UiPalette.GoldFill);
         _streakText = CreateText(canvasObject.transform, "StreakText", new Vector2(0f, 1f), new Vector2(24f, -78f), StreakFontSize, TextAnchor.UpperLeft, UiPalette.GoldFill);
         _newBestText = CreateText(canvasObject.transform, "NewBestText", new Vector2(0.5f, 1f), new Vector2(0f, -130f), NewBestFontSize, TextAnchor.UpperCenter, UiPalette.GoldFill);
+        _dailyChallengeBadge = CreateText(canvasObject.transform, "DailyChallengeBadge", new Vector2(0.5f, 1f), new Vector2(0f, -24f), DailyChallengeBadgeFontSize, TextAnchor.UpperCenter, UiPalette.GoldFill);
+        _dailyChallengeBadge.text = Strings.HudDailyChallengeBadge;
 
         _streakText.gameObject.SetActive(false);
         _newBestText.gameObject.SetActive(false);
+        _dailyChallengeBadge.gameObject.SetActive(false);
 
         (_undoButton, _undoButtonLabel) = BuildActionButton(canvasObject.transform, "UndoButton", new Vector2(0f, 0f), new Vector2(24f, 24f), OnUndoClicked);
         (_refreshButton, _refreshButtonLabel) = BuildActionButton(canvasObject.transform, "RefreshButton", new Vector2(0f, 0f), new Vector2(24f + 160f + 12f, 24f), OnRefreshClicked);
