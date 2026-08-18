@@ -41,4 +41,15 @@ public static class Constants
     public const float CeramicCompletionPauseSeconds = 1f;
     public const float CeramicCelebrationDurationSeconds = 1.4f;
     public const float CeramicWorldScale = 0.012f;
+
+    // Coin economy (CLAUDE.md §4.5)
+    public const int CoinsForGameOver = 5;
+    public const int CoinsForNewBestBonus = 10;
+    public const int CoinsForCeramicCompleted = 25;
+    public const int CoinsForDailyChallengeCompletion = 30;
+    public const int UndoCostCoins = 50;
+    public const int RefreshCostCoins = 75;
+
+    // DDA save history (CLAUDE.md §3.7)
+    public const int DdaLast10ScoresCapacity = 10;
 }
