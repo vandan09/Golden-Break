@@ -134,4 +134,28 @@ public class SaveManagerTests
         Assert.AreEqual(SaveData.CurrentSaveVersion, loaded.SaveVersion);
         Assert.AreEqual(77, loaded.Coins);
     }
+
+    [Test]
+    public void LoadFrom_JsonMissingAFieldAddedLaterToV1_BackfillsAnEmptyCollectionNotNull()
+    {
+        var persistence = new FakeSavePersistence();
+        // Simulates a real save written before gallery_frames_owned
+        // existed in the schema — Newtonsoft leaves the field null rather
+        // than erroring on an unrecognized-missing property.
+        persistence.Seed("{\"save_version\":1,\"best_score\":50,\"coins\":10}");
+
+        SaveData loaded = SaveManager.LoadFrom(persistence);
+
+        Assert.IsNotNull(loaded.GalleryFramesOwned);
+        Assert.AreEqual(0, loaded.GalleryFramesOwned.Count);
+        Assert.IsNotNull(loaded.Gallery);
+        Assert.IsNotNull(loaded.MilestonesClaimed);
+        Assert.IsNotNull(loaded.DailyCompleted);
+        Assert.IsNotNull(loaded.DailyBestScores);
+        Assert.IsNotNull(loaded.IapThemesOwned);
+        Assert.IsNotNull(loaded.DdaLast10Scores);
+        Assert.IsNotNull(loaded.CurrentCeramic);
+        Assert.IsNotNull(loaded.Settings);
+        Assert.AreEqual(50, loaded.BestScore, "fields actually present in the JSON should still load correctly");
+    }
 }

@@ -72,6 +72,17 @@ public sealed class SaveData
     [JsonProperty("iap_themes_owned")]
     public List<string> IapThemesOwned;
 
+    // Not in CLAUDE.md §7.3's example JSON — a genuine gap discovered
+    // implementing §4.1's streak milestones ("day 7: gallery frame
+    // unlock", "day 14: gallery frame", "day 21: rare gallery frame") and
+    // §4.5's purchasable "Gallery frame (cosmetic border)" — nothing in
+    // the example JSON records which frames a player has unlocked/bought.
+    // Frame IDs are opaque strings (e.g. "streak_day7"); actual frame
+    // rendering is Phase 5 art/polish scope, same as every other cosmetic
+    // asset — this only tracks ownership.
+    [JsonProperty("gallery_frames_owned")]
+    public List<string> GalleryFramesOwned;
+
     [JsonProperty("settings")]
     public SaveSettingsData Settings;
 
@@ -115,6 +126,7 @@ public sealed class SaveData
             InterstitialTodayDate = todayIsoDate,
             IapRemoveAds = false,
             IapThemesOwned = new List<string>(),
+            GalleryFramesOwned = new List<string>(),
             Settings = SaveSettingsData.CreateDefault(),
             DdaAvgScore = 0f,
             DdaLast10Scores = new List<int>(),
