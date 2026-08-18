@@ -38,6 +38,8 @@ public sealed class GameplayHUD : MonoBehaviour
     private Text _undoButtonLabel;
     private Button _refreshButton;
     private Text _refreshButtonLabel;
+    private ToastMessage _toast;
+    private HomeScreen _homeScreen;
 
     public void Configure(PieceController pieceController, SaveManager saveManager, CoinManager coinManager = null, RewardedAdController rewardedAdController = null)
     {
@@ -46,6 +48,11 @@ public sealed class GameplayHUD : MonoBehaviour
         _rewardedAdController = rewardedAdController;
 
         BuildUi();
+
+        var toastObject = new GameObject("Toast");
+        toastObject.transform.SetParent(transform, false);
+        _toast = toastObject.AddComponent<ToastMessage>();
+        _toast.Configure(sortingOrder: 5);
 
         _pieceController.Score.OnScoreChanged += _ => RefreshScoreTexts();
         _pieceController.Score.OnNewBest += ShowNewBestCelebration;
@@ -57,6 +64,17 @@ public sealed class GameplayHUD : MonoBehaviour
 
         RefreshScoreTexts();
         RefreshCoinsTextAndButtons();
+    }
+
+    // HomeScreen is constructed after GameplayHUD in GameplayController's
+    // composition order (it needs Gallery/Settings/DailyChallengeUI,
+    // which are built later) — set post-construction rather than
+    // reordering everything else. A real gap caught on-device: there was
+    // previously no way back to the main menu once Play was tapped (see
+    // PROGRESS.md).
+    public void SetHomeScreen(HomeScreen homeScreen)
+    {
+        _homeScreen = homeScreen;
     }
 
     private void Update()
@@ -91,6 +109,7 @@ public sealed class GameplayHUD : MonoBehaviour
 
         (_undoButton, _undoButtonLabel) = BuildActionButton(canvasObject.transform, "UndoButton", new Vector2(0f, 0f), new Vector2(24f, 24f), OnUndoClicked);
         (_refreshButton, _refreshButtonLabel) = BuildActionButton(canvasObject.transform, "RefreshButton", new Vector2(0f, 0f), new Vector2(24f + 160f + 12f, 24f), OnRefreshClicked);
+        BuildActionButton(canvasObject.transform, "MenuButton", new Vector2(1f, 0f), new Vector2(-24f, 24f), OnMenuClicked, Strings.MenuButtonLabel);
     }
 
     private static Text CreateText(Transform parent, string name, Vector2 anchor, Vector2 anchoredPosition, int fontSize, TextAnchor alignment, Color colour)
@@ -115,7 +134,7 @@ public sealed class GameplayHUD : MonoBehaviour
         return text;
     }
 
-    private (Button, Text) BuildActionButton(Transform parent, string name, Vector2 anchor, Vector2 anchoredPosition, UnityEngine.Events.UnityAction onClick)
+    private (Button, Text) BuildActionButton(Transform parent, string name, Vector2 anchor, Vector2 anchoredPosition, UnityEngine.Events.UnityAction onClick, string fixedLabel = "Label")
     {
         var buttonObject = new GameObject(name);
         buttonObject.transform.SetParent(parent, false);
@@ -131,6 +150,7 @@ public sealed class GameplayHUD : MonoBehaviour
         rect.sizeDelta = new Vector2(160f, 56f);
 
         var label = CreateText(buttonObject.transform, "Label", Vector2.zero, Vector2.zero, ActionButtonLabelFontSize, TextAnchor.MiddleCenter, UiPalette.TextPrimary);
+        label.text = fixedLabel;
         var labelRect = label.GetComponent<RectTransform>();
         labelRect.anchorMin = Vector2.zero;
         labelRect.anchorMax = Vector2.one;
@@ -165,6 +185,11 @@ public sealed class GameplayHUD : MonoBehaviour
         _refreshButtonLabel.text = string.Format(Strings.HudRefreshButtonFormat, Constants.RefreshCostCoins);
     }
 
+    private void OnMenuClicked()
+    {
+        _homeScreen?.Show();
+    }
+
     private void OnUndoClicked()
     {
         if (!_pieceController.CanUndo)
@@ -184,6 +209,10 @@ public sealed class GameplayHUD : MonoBehaviour
                 if (succeeded)
                 {
                     LogUndoOrRefreshUsed("undo_used", "rewarded");
+                }
+                else
+                {
+                    _toast.Show(Strings.AdUnavailableToast);
                 }
             });
         }
@@ -208,6 +237,10 @@ public sealed class GameplayHUD : MonoBehaviour
                 if (succeeded)
                 {
                     LogUndoOrRefreshUsed("refresh_used", "rewarded");
+                }
+                else
+                {
+                    _toast.Show(Strings.AdUnavailableToast);
                 }
             });
         }

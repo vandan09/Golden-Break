@@ -297,6 +297,8 @@ public sealed class SettingsScreen : MonoBehaviour
         Debug.Log("SettingsScreen: would open GLYPH's Play Store listing here once it's published (TODO).");
     }
 
+    public bool IsVisible => _panel != null && _panel.activeSelf;
+
     public void Show()
     {
         SaveSettingsData settings = _saveManager.Current.Settings;
@@ -313,7 +315,7 @@ public sealed class SettingsScreen : MonoBehaviour
         }
     }
 
-    private void Hide()
+    public void Hide()
     {
         _panel.SetActive(false);
         if (_inputHandler != null)

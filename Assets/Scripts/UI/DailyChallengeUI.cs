@@ -140,6 +140,8 @@ public sealed class DailyChallengeUI : MonoBehaviour
         _onPlayClicked?.Invoke();
     }
 
+    public bool IsVisible => _panel != null && _panel.activeSelf;
+
     public void Show()
     {
         DateTime today = _nowProvider();
@@ -165,7 +167,7 @@ public sealed class DailyChallengeUI : MonoBehaviour
         }
     }
 
-    private void Hide()
+    public void Hide()
     {
         _panel.SetActive(false);
         if (_inputHandler != null)

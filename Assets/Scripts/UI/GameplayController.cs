@@ -208,6 +208,15 @@ public sealed class GameplayController : MonoBehaviour
         var homeScreenObject = new GameObject("HomeScreen");
         var homeScreen = homeScreenObject.AddComponent<HomeScreen>();
         homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi);
+
+        // Real gap caught on-device: no way back to the main menu or to
+        // exit once Play was tapped (see PROGRESS.md). Menu button wired
+        // post-construction since HomeScreen is built after GameplayHUD.
+        hud.SetHomeScreen(homeScreen);
+
+        var backButtonRouterObject = new GameObject("BackButtonRouter");
+        var backButtonRouter = backButtonRouterObject.AddComponent<BackButtonRouter>();
+        backButtonRouter.Configure(homeScreen, galleryScreen, settingsScreen, dailyChallengeUi);
     }
 
     // CLAUDE.md §4.2: builds a fresh seeded spawner for *today* and swaps

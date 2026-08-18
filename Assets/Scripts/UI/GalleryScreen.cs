@@ -271,6 +271,8 @@ public sealed class GalleryScreen : MonoBehaviour
         rect.offsetMax = Vector2.zero;
     }
 
+    public bool IsVisible => _panel != null && _panel.activeSelf;
+
     public void Show()
     {
         RefreshCards();
@@ -281,7 +283,7 @@ public sealed class GalleryScreen : MonoBehaviour
         }
     }
 
-    private void Hide()
+    public void Hide()
     {
         _panel.SetActive(false);
         if (_inputHandler != null)

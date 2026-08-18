@@ -64,4 +64,6 @@ public static class Strings
 
     // Shared
     public const string CloseButtonSymbol = "X";
+    public const string MenuButtonLabel = "Menu";
+    public const string AdUnavailableToast = "Ad unavailable";
 }

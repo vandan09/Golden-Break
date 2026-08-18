@@ -39,6 +39,7 @@ public sealed class GameOverScreen : MonoBehaviour
     private Text _milestoneText;
     private GameObject _continueButton;
     private GameObject _doubleCoinsButton;
+    private ToastMessage _toast;
     private bool _doubleCoinsUsedThisGameOver;
     private bool _resolved;
 
@@ -60,6 +61,12 @@ public sealed class GameOverScreen : MonoBehaviour
         _nowProvider = nowProvider ?? (() => DateTime.UtcNow);
 
         BuildUi();
+
+        var toastObject = new GameObject("Toast");
+        toastObject.transform.SetParent(transform, false);
+        _toast = toastObject.AddComponent<ToastMessage>();
+        _toast.Configure(sortingOrder: 11); // above this screen's own canvas (10)
+
         _pieceController.OnGameOver += Show;
         _panel.SetActive(false);
     }
@@ -200,6 +207,7 @@ public sealed class GameOverScreen : MonoBehaviour
                 // granted, player never blocked." The panel stays exactly
                 // as it was; Play Again remains available.
                 _continueButton.SetActive(_pieceController.CanContinue);
+                _toast.Show(Strings.AdUnavailableToast);
             }
         });
     }
@@ -217,6 +225,10 @@ public sealed class GameOverScreen : MonoBehaviour
             {
                 _doubleCoinsUsedThisGameOver = true;
                 _doubleCoinsButton.SetActive(false);
+            }
+            else
+            {
+                _toast.Show(Strings.AdUnavailableToast);
             }
         });
     }

@@ -173,6 +173,12 @@ public sealed class HomeScreen : MonoBehaviour
         textRect.offsetMax = Vector2.zero;
     }
 
+    // Whether Home is currently the visible screen — used by
+    // BackButtonRouter to decide what a hardware back-press should do
+    // (quit the app when Home itself is showing, since it's the top of
+    // the navigation stack).
+    public bool IsVisible => _panel != null && _panel.activeSelf;
+
     private void OnPlayClicked()
     {
         Hide();
@@ -193,7 +199,14 @@ public sealed class HomeScreen : MonoBehaviour
         _dailyChallengeUI?.Show();
     }
 
-    private void Show()
+    // Public: also reused as a pause menu, reopened mid-game via
+    // GameplayHUD's Menu button or the Android back button
+    // (BackButtonRouter) — CLAUDE.md §3.6 never describes a way back to
+    // Home once Play is tapped, a real gap caught on-device (see
+    // PROGRESS.md). Tapping Play again from this reopened state just
+    // resumes — OnPlayClicked only ever calls Hide(), it never touches
+    // PieceController, so the game underneath is untouched.
+    public void Show()
     {
         SaveData data = _saveManager.Current;
         _streakText.text = data.StreakCount > 0 ? string.Format(Strings.HomeStreakActiveFormat, data.StreakCount) : Strings.HomeStreakStartPrompt;
@@ -209,7 +222,7 @@ public sealed class HomeScreen : MonoBehaviour
         }
     }
 
-    private void Hide()
+    public void Hide()
     {
         _panel.SetActive(false);
         if (_inputHandler != null)
