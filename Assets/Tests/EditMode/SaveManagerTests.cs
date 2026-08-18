@@ -104,4 +104,34 @@ public class SaveManagerTests
 
         Assert.IsTrue(fired);
     }
+
+    [Test]
+    public void LoadFrom_OlderSaveVersion_StampsCurrentVersionOnLoad()
+    {
+        var persistence = new FakeSavePersistence();
+        SaveData original = SaveData.CreateFresh("2026-08-17");
+        original.SaveVersion = 0;
+        original.BestScore = 100;
+        persistence.Seed(JsonConvert.SerializeObject(original));
+
+        SaveData loaded = SaveManager.LoadFrom(persistence);
+
+        Assert.AreEqual(SaveData.CurrentSaveVersion, loaded.SaveVersion);
+        Assert.AreEqual(100, loaded.BestScore, "migration should not disturb existing field values");
+    }
+
+    [Test]
+    public void LoadFrom_AlreadyCurrentSaveVersion_LeavesDataUnchanged()
+    {
+        var persistence = new FakeSavePersistence();
+        SaveData original = SaveData.CreateFresh("2026-08-17");
+        original.SaveVersion = SaveData.CurrentSaveVersion;
+        original.Coins = 77;
+        persistence.Seed(JsonConvert.SerializeObject(original));
+
+        SaveData loaded = SaveManager.LoadFrom(persistence);
+
+        Assert.AreEqual(SaveData.CurrentSaveVersion, loaded.SaveVersion);
+        Assert.AreEqual(77, loaded.Coins);
+    }
 }

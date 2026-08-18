@@ -92,6 +92,7 @@ public sealed class SaveManager : MonoBehaviour
                 throw new JsonException("Deserialized to null.");
             }
 
+            Migrate(data);
             return data;
         }
         catch (JsonException e)
@@ -100,5 +101,23 @@ public sealed class SaveManager : MonoBehaviour
             OnSaveCorrupted?.Invoke();
             return SaveData.CreateFresh(today);
         }
+    }
+
+    // Upgrades an older on-disk save to the current schema in place, one
+    // version step at a time. No migration steps exist yet — v1 is the only
+    // schema this project has ever shipped — but this is the hook
+    // BUILD_PLAN's Phase 4 task list calls for, ready to grow a case per
+    // future version bump without touching LoadFrom's own control flow.
+    private static void Migrate(SaveData data)
+    {
+        if (data.SaveVersion >= SaveData.CurrentSaveVersion)
+        {
+            return;
+        }
+
+        // Example for the next bump:
+        // if (data.SaveVersion < 2) { /* upgrade v1 fields -> v2 shape */ }
+
+        data.SaveVersion = SaveData.CurrentSaveVersion;
     }
 }
