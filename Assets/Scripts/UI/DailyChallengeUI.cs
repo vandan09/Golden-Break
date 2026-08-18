@@ -22,8 +22,20 @@ public sealed class DailyChallengeUI : MonoBehaviour
 
     private SaveManager _saveManager;
     private InputHandler _inputHandler;
+    private HomeScreen _homeScreen;
     private Action _onPlayClicked;
     private Func<DateTime> _nowProvider;
+
+    // Set post-construction (GameplayController builds HomeScreen last).
+    // Only the X close button (and BackButtonRouter) return to Home —
+    // tapping Play deliberately does not, it starts the daily-challenge
+    // game instead. Real bug caught on-device: Home's own panel never
+    // hid itself when opening this screen, so it opened invisibly behind
+    // Home and never received a single tap.
+    public void SetHomeScreen(HomeScreen homeScreen)
+    {
+        _homeScreen = homeScreen;
+    }
 
     private GameObject _panel;
     private Text _statusText;
@@ -136,7 +148,17 @@ public sealed class DailyChallengeUI : MonoBehaviour
 
     private void OnPlayClicked()
     {
-        Hide();
+        // Deliberately does not go through Hide() — Play starts the
+        // daily-challenge game, it must not bounce back to Home the way
+        // the X button and the back button do. Re-enables input directly
+        // (Show() disabled it, and StartDailyChallenge itself has no
+        // notion of InputHandler to re-enable it as a side effect).
+        _panel.SetActive(false);
+        if (_inputHandler != null)
+        {
+            _inputHandler.InputEnabled = true;
+        }
+
         _onPlayClicked?.Invoke();
     }
 
@@ -170,7 +192,12 @@ public sealed class DailyChallengeUI : MonoBehaviour
     public void Hide()
     {
         _panel.SetActive(false);
-        if (_inputHandler != null)
+
+        if (_homeScreen != null)
+        {
+            _homeScreen.Show();
+        }
+        else if (_inputHandler != null)
         {
             _inputHandler.InputEnabled = true;
         }

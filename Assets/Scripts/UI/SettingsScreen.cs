@@ -23,6 +23,7 @@ public sealed class SettingsScreen : MonoBehaviour
     private SaveManager _saveManager;
     private InputHandler _inputHandler;
     private IapManager _iapManager;
+    private HomeScreen _homeScreen;
     private GameObject _panel;
     private Toggle _soundToggle;
     private Toggle _musicToggle;
@@ -30,6 +31,16 @@ public sealed class SettingsScreen : MonoBehaviour
     private Toggle _highContrastToggle;
     private GameObject _removeAdsButton;
     private Text _removeAdsButtonLabel;
+
+    // Set post-construction (GameplayController builds HomeScreen last).
+    // Settings is only ever reachable from Home, so closing it must
+    // return there — real bug caught on-device: Home's own panel never
+    // hid itself when opening Settings, so Settings opened invisibly
+    // behind it and never received a single tap.
+    public void SetHomeScreen(HomeScreen homeScreen)
+    {
+        _homeScreen = homeScreen;
+    }
 
     public void Configure(SaveManager saveManager, InputHandler inputHandler, IapManager iapManager = null)
     {
@@ -318,7 +329,12 @@ public sealed class SettingsScreen : MonoBehaviour
     public void Hide()
     {
         _panel.SetActive(false);
-        if (_inputHandler != null)
+
+        if (_homeScreen != null)
+        {
+            _homeScreen.Show();
+        }
+        else if (_inputHandler != null)
         {
             _inputHandler.InputEnabled = true;
         }

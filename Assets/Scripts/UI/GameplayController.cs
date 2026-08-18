@@ -210,9 +210,14 @@ public sealed class GameplayController : MonoBehaviour
         homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi);
 
         // Real gap caught on-device: no way back to the main menu or to
-        // exit once Play was tapped (see PROGRESS.md). Menu button wired
-        // post-construction since HomeScreen is built after GameplayHUD.
+        // exit once Play was tapped, and Gallery/Settings/Daily Challenge
+        // opened invisibly behind Home's own still-active panel and never
+        // received a single tap (see PROGRESS.md). All wired
+        // post-construction since HomeScreen is built after them.
         hud.SetHomeScreen(homeScreen);
+        galleryScreen?.SetHomeScreen(homeScreen);
+        settingsScreen.SetHomeScreen(homeScreen);
+        dailyChallengeUi.SetHomeScreen(homeScreen);
 
         var backButtonRouterObject = new GameObject("BackButtonRouter");
         var backButtonRouter = backButtonRouterObject.AddComponent<BackButtonRouter>();

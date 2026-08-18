@@ -184,18 +184,28 @@ public sealed class HomeScreen : MonoBehaviour
         Hide();
     }
 
+    // Each of these hides Home *first* — real bug caught on-device:
+    // Home's own panel (sorting order 25, opaque, full-screen) never
+    // hid itself when opening a sub-screen, so the sub-screen opened
+    // invisibly behind it and never received a single tap ("doesn't work
+    // on first click"). The sub-screen's own Hide() re-shows Home when
+    // the player backs out (see GalleryScreen/SettingsScreen/
+    // DailyChallengeUI.SetHomeScreen).
     private void OnGalleryClicked()
     {
+        Hide();
         _galleryScreen?.Show();
     }
 
     private void OnSettingsClicked()
     {
+        Hide();
         _settingsScreen?.Show();
     }
 
     private void OnDailyChallengeClicked()
     {
+        Hide();
         _dailyChallengeUI?.Show();
     }
 

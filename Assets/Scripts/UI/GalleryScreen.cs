@@ -28,9 +28,21 @@ public sealed class GalleryScreen : MonoBehaviour
     private GalleryManager _galleryManager;
     private CeramicDefinition[] _ceramicPool;
     private InputHandler _inputHandler;
+    private HomeScreen _homeScreen;
     private GameObject _panel;
     private RectTransform _contentRect;
     private Text _emptyStateText;
+
+    // Set post-construction (GameplayController builds HomeScreen last).
+    // Gallery is only ever reachable from Home (its own button was
+    // removed in Phase 4), so closing it must return to Home — not
+    // directly resume gameplay, which was the real bug caught on-device:
+    // Home's own panel never hid itself when opening Gallery, so Gallery
+    // opened invisibly behind it and never received a single tap.
+    public void SetHomeScreen(HomeScreen homeScreen)
+    {
+        _homeScreen = homeScreen;
+    }
 
     // inputHandler is optional so any existing caller that doesn't pass
     // one keeps compiling — but GameplayController always supplies it now,
@@ -286,7 +298,16 @@ public sealed class GalleryScreen : MonoBehaviour
     public void Hide()
     {
         _panel.SetActive(false);
-        if (_inputHandler != null)
+
+        // Gallery is only ever opened from Home, so closing it returns
+        // there (Home's own Show() keeps InputEnabled false, since
+        // gameplay isn't the destination) — only falls back to directly
+        // re-enabling input if somehow no HomeScreen was wired.
+        if (_homeScreen != null)
+        {
+            _homeScreen.Show();
+        }
+        else if (_inputHandler != null)
         {
             _inputHandler.InputEnabled = true;
         }
