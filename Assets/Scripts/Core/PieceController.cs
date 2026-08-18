@@ -27,6 +27,26 @@ public sealed class PieceController : MonoBehaviour
     private const float GhostZOffset = -0.5f;
     private const float DragZOffset = -1f;
 
+    // Undo support (CLAUDE.md §4.5): captures exactly what the most recent
+    // placement did, so it can be exactly reversed. A struct, not a class —
+    // this is a small, short-lived value invalidated on the very next
+    // placement or hand deal, no identity semantics needed.
+    private readonly struct PlacementRecord
+    {
+        public readonly int SlotIndex;
+        public readonly PieceDefinition Piece;
+        public readonly Vector2Int Origin;
+        public readonly int ColourId;
+
+        public PlacementRecord(int slotIndex, PieceDefinition piece, Vector2Int origin, int colourId)
+        {
+            SlotIndex = slotIndex;
+            Piece = piece;
+            Origin = origin;
+            ColourId = colourId;
+        }
+    }
+
     private GridManager _grid;
     private PieceTrayController _tray;
     private PieceSpawner _spawner;
@@ -41,12 +61,40 @@ public sealed class PieceController : MonoBehaviour
     private Vector2Int _lastGhostOrigin;
     private bool _lastGhostValid;
 
+    // CLAUDE.md §4.5 undo/refresh restrictions. Both are coin-agnostic
+    // here — PieceController (Core) has no knowledge of CoinManager
+    // (Meta), matching the same dependency-direction rule
+    // CeramicController's own docstring calls out (Core doesn't reach into
+    // Meta; Meta reacts to Core's events/calls Core's public API instead).
+    // Coin-cost gating belongs to whatever calls TryUndo/TryRefresh (a
+    // future UI button handler), not to the mechanic itself.
+    private PlacementRecord? _lastPlacement;
+    private bool _lastPlacementClearedLines;
+    private bool _undoUsedThisHand;
+    private bool _refreshUsedThisHand;
+
     public bool IsDragging => _draggedSlotIndex >= 0;
     public bool IsGameOver { get; private set; }
     public PieceDefinition[] Hand => _hand;
     public GridManager Grid => _grid;
     public PieceTrayController Tray => _tray;
     public ScoreManager Score => _scoreManager;
+
+    // Once game-over fires, the gameplay HUD's undo/refresh buttons are no
+    // longer the active interaction surface (the game-over screen is) — so
+    // both gate on !IsGameOver alongside their own documented restrictions.
+    public bool CanUndo =>
+        _lastPlacement.HasValue &&
+        !_lastPlacementClearedLines &&
+        !_undoUsedThisHand &&
+        !IsDragging &&
+        !IsGameOver;
+
+    public bool CanRefresh =>
+        !_refreshUsedThisHand &&
+        AllPiecesUnplaced() &&
+        !IsDragging &&
+        !IsGameOver;
 
     public event System.Action OnGameOver;
     public event System.Action<LineClearDetector.ClearResult, int> OnLinesCleared;
@@ -77,7 +125,20 @@ public sealed class PieceController : MonoBehaviour
         DealNewHand();
     }
 
+    // Starts a genuinely new hand-cycle (game start, after a full hand is
+    // placed, or a fresh game): resets the per-hand undo/refresh counters,
+    // since CLAUDE.md §4.5's "max 1 per hand" resets only when a real new
+    // hand begins — not on every internal piece deal (see TryRefresh,
+    // which deals fresh pieces via DealHandCore without resetting these).
     public void DealNewHand()
+    {
+        _undoUsedThisHand = false;
+        _refreshUsedThisHand = false;
+        _lastPlacement = null;
+        DealHandCore();
+    }
+
+    private void DealHandCore()
     {
         _hand = _spawner.DealHand(Constants.PieceHandSize);
         _handColourIds = new int[_hand.Length];
@@ -195,6 +256,15 @@ public sealed class PieceController : MonoBehaviour
             }
 
             LineClearDetector.ClearResult clearResult = LineClearDetector.DetectAndClear(_grid.Board);
+
+            // Recorded regardless of AllPiecesPlaced() below — if this
+            // placement completes the hand, DealNewHand() (called a few
+            // lines down) immediately nulls this back out, which is
+            // exactly CLAUDE.md §4.5's "once all 3 are placed and new
+            // pieces are dealt, undo is no longer available."
+            _lastPlacement = new PlacementRecord(slotIndex, piece, _lastGhostOrigin, _handColourIds[slotIndex]);
+            _lastPlacementClearedLines = clearResult.AnyCleared;
+
             if (clearResult.AnyCleared)
             {
                 var clearedCells = new HashSet<Vector2Int>();
@@ -297,6 +367,74 @@ public sealed class PieceController : MonoBehaviour
                 return false;
             }
         }
+
+        return true;
+    }
+
+    private bool AllPiecesUnplaced()
+    {
+        if (_hand == null)
+        {
+            return false;
+        }
+
+        foreach (PieceDefinition piece in _hand)
+        {
+            if (piece == null)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // CLAUDE.md §4.5: reverts exactly the most recent placement — the piece
+    // returns to its original tray slot, the cells it filled empty again.
+    // Does NOT restore ScoreManager's streak multiplier: a non-clearing
+    // placement (the only kind undo can ever apply to, since a clearing
+    // placement blocks undo entirely) only ever resets the streak to ×1,
+    // never awards points, so the one real side effect undo doesn't reverse
+    // is a streak reset that CLAUDE.md's undo spec never mentions
+    // restoring — deliberately out of scope, not an oversight.
+    public bool TryUndo()
+    {
+        if (!CanUndo)
+        {
+            return false;
+        }
+
+        PlacementRecord record = _lastPlacement.Value;
+        _grid.Board.RemovePiece(record.Piece, record.Origin.x, record.Origin.y);
+        foreach (Vector2Int cell in record.Piece.cells)
+        {
+            _grid.RefreshCell(record.Origin.x + cell.x, record.Origin.y + cell.y);
+        }
+
+        _hand[record.SlotIndex] = record.Piece;
+        _tray.Slots[record.SlotIndex].SetPiece(record.Piece, record.ColourId, Constants.TrayPieceScale);
+
+        _undoUsedThisHand = true;
+        _lastPlacement = null;
+
+        return true;
+    }
+
+    // CLAUDE.md §4.5: discards the current (fully-unplaced) hand and deals
+    // a fresh weighted-random 3, without resetting the per-hand
+    // undo/refresh counters — those only reset on a genuine new hand-cycle
+    // (see DealNewHand), so a player can't chain refreshes against their
+    // own refreshed hand.
+    public bool TryRefresh()
+    {
+        if (!CanRefresh)
+        {
+            return false;
+        }
+
+        _refreshUsedThisHand = true;
+        _lastPlacement = null;
+        DealHandCore();
 
         return true;
     }

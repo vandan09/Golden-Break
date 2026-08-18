@@ -83,6 +83,25 @@ public sealed class BoardState
         _cellColourId[Index(x, y)] = EmptyColourId;
     }
 
+    // Undo support (CLAUDE.md §4.5): empties exactly the cells a piece
+    // occupies at originX/originY, the exact complement of Place(). Only
+    // valid to call for a placement that hasn't triggered a line clear
+    // since — the caller (PieceController) enforces that restriction, not
+    // this method, since BoardState has no notion of "this game's most
+    // recent placement."
+    public void RemovePiece(PieceDefinition piece, int originX, int originY)
+    {
+        if (piece == null)
+        {
+            throw new ArgumentNullException(nameof(piece));
+        }
+
+        foreach (Vector2Int cell in piece.cells)
+        {
+            ClearCell(originX + cell.x, originY + cell.y);
+        }
+    }
+
     private static void AssertInBounds(int x, int y)
     {
         Debug.Assert(x >= 0 && x < Constants.GridSize && y >= 0 && y < Constants.GridSize,

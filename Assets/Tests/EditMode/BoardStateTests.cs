@@ -133,4 +133,41 @@ public class BoardStateTests
 
         Assert.Throws<System.ArgumentNullException>(() => board.CanPlace(null, 0, 0));
     }
+
+    [Test]
+    public void RemovePiece_PreviouslyPlacedPiece_ClearsExactlyItsCells()
+    {
+        var board = new BoardState();
+        PieceDefinition lShape = MakePiece(new Vector2Int(0, 0), new Vector2Int(1, 0), new Vector2Int(0, 1));
+        board.Place(lShape, 2, 2, colourId: 3);
+
+        board.RemovePiece(lShape, 2, 2);
+
+        Assert.IsFalse(board.IsFilled(2, 2));
+        Assert.IsFalse(board.IsFilled(3, 2));
+        Assert.IsFalse(board.IsFilled(2, 3));
+    }
+
+    [Test]
+    public void RemovePiece_LeavesUnrelatedCellsUntouched()
+    {
+        var board = new BoardState();
+        PieceDefinition single = MakePiece(new Vector2Int(0, 0));
+        board.Place(single, 3, 3, colourId: 1);
+        board.Place(single, 5, 5, colourId: 2);
+
+        board.RemovePiece(single, 3, 3);
+
+        Assert.IsFalse(board.IsFilled(3, 3));
+        Assert.IsTrue(board.IsFilled(5, 5), "unrelated cell should be untouched");
+        Assert.AreEqual(2, board.GetColourId(5, 5));
+    }
+
+    [Test]
+    public void RemovePiece_NullPiece_ThrowsArgumentNullException()
+    {
+        var board = new BoardState();
+
+        Assert.Throws<System.ArgumentNullException>(() => board.RemovePiece(null, 0, 0));
+    }
 }
