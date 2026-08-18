@@ -3,12 +3,12 @@ using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Self-bootstraps the Gameplay scene. Phase 1 scope only: grid + pieces —
-/// no HUD/score/kintsugi yet, those land in later phases. Loads the 20
-/// <see cref="PieceDefinition"/> assets and wires
-/// GridManager + PieceTrayController + PieceController + InputHandler
-/// together, entirely at runtime (no hand-authored scene objects to edit
-/// blind without an interactive Editor session — see PROGRESS.md).
+/// Self-bootstraps the Gameplay scene: grid, tray, HUD, game-over screen,
+/// and (as of Phase 3) the kintsugi ceramic + gallery. Loads the
+/// <see cref="PieceDefinition"/> and <see cref="CeramicDefinition"/> pools
+/// and wires everything together, entirely at runtime (no hand-authored
+/// scene objects to edit blind without an interactive Editor session —
+/// see PROGRESS.md).
 ///
 /// Bootstraps via <see cref="SceneManager.sceneLoaded"/>, not
 /// [RuntimeInitializeOnLoadMethod] directly — that attribute only fires
@@ -126,6 +126,10 @@ public sealed class GameplayController : MonoBehaviour
             var ceramicControllerObject = new GameObject("CeramicController");
             var ceramicController = ceramicControllerObject.AddComponent<CeramicController>();
             ceramicController.Configure(pieceController, ceramicView, ceramicPool, ceramicManager, galleryManager, saveManager);
+
+            var galleryScreenObject = new GameObject("GalleryScreen");
+            var galleryScreen = galleryScreenObject.AddComponent<GalleryScreen>();
+            galleryScreen.Configure(galleryManager, ceramicPool);
         }
     }
 
