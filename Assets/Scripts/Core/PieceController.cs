@@ -78,8 +78,19 @@ public sealed class PieceController : MonoBehaviour
     // undo/refresh) — reset only by RestartGame, never by DealNewHand.
     private bool _continueUsedThisGame;
 
+    // CLAUDE.md §4.2: the daily challenge's seeded sequence must hold for
+    // the *entire* session, not just the first hand — DealNewHand/
+    // TryRefresh both deal from _activeSpawner rather than the hardcoded
+    // DDA _spawner, so a refresh mid-daily-challenge still draws from the
+    // same deterministic per-day stream instead of silently falling back
+    // to the DDA pool. Defaults to _spawner for regular play; only
+    // StartDailyChallenge swaps it, and RestartGame always swaps it back.
+    private PieceSpawner _activeSpawner;
+    private bool _isDailyChallengeSession;
+
     public bool IsDragging => _draggedSlotIndex >= 0;
     public bool IsGameOver { get; private set; }
+    public bool IsDailyChallengeSession => _isDailyChallengeSession;
     public PieceDefinition[] Hand => _hand;
     public GridManager Grid => _grid;
     public PieceTrayController Tray => _tray;
@@ -102,8 +113,13 @@ public sealed class PieceController : MonoBehaviour
         !IsGameOver;
 
     // CLAUDE.md §5.1: only offered once game-over has actually fired, and
-    // only once per game.
-    public bool CanContinue => IsGameOver && !_continueUsedThisGame;
+    // only once per game. Also unavailable during a daily-challenge
+    // session — CLAUDE.md never specifies how continue should interact
+    // with "one fixed game per day," and a rescue mechanic (whether
+    // drawing from the standard pool or the seeded one) undermines that
+    // framing regardless. Documented interpretation, not a literal spec
+    // reading.
+    public bool CanContinue => IsGameOver && !_continueUsedThisGame && !_isDailyChallengeSession;
 
     public event System.Action OnGameOver;
     public event System.Action<LineClearDetector.ClearResult, int> OnLinesCleared;
@@ -120,6 +136,7 @@ public sealed class PieceController : MonoBehaviour
         _grid = grid;
         _tray = tray;
         _spawner = spawner;
+        _activeSpawner = spawner;
         _standardSpawnerForContinue = standardSpawnerForContinue ?? spawner;
         _scoreManager = scoreManager;
         _scoreManager.OnNewBest += PlayNewBestFeedback;
@@ -134,6 +151,30 @@ public sealed class PieceController : MonoBehaviour
     }
 
     public void RestartGame()
+    {
+        _isDailyChallengeSession = false;
+        _activeSpawner = _spawner;
+        RestartGameInternal();
+    }
+
+    // CLAUDE.md §4.2: swaps the whole session onto a caller-supplied
+    // seeded spawner (see DailyChallengeManager.CreateSpawner) so every
+    // deal — including a mid-session refresh — stays within that day's
+    // deterministic sequence. RestartGame (leaving daily challenge back
+    // to a regular game) always swaps back to the DDA spawner.
+    public void StartDailyChallenge(PieceSpawner dailySpawner)
+    {
+        if (dailySpawner == null)
+        {
+            throw new System.ArgumentNullException(nameof(dailySpawner));
+        }
+
+        _isDailyChallengeSession = true;
+        _activeSpawner = dailySpawner;
+        RestartGameInternal();
+    }
+
+    private void RestartGameInternal()
     {
         _grid.Board.Clear();
         _grid.RefreshAllCells();
@@ -153,7 +194,7 @@ public sealed class PieceController : MonoBehaviour
         _undoUsedThisHand = false;
         _refreshUsedThisHand = false;
         _lastPlacement = null;
-        DealHandCore(_spawner);
+        DealHandCore(_activeSpawner);
     }
 
     private void DealHandCore(PieceSpawner spawner)
@@ -452,7 +493,7 @@ public sealed class PieceController : MonoBehaviour
 
         _refreshUsedThisHand = true;
         _lastPlacement = null;
-        DealHandCore(_spawner);
+        DealHandCore(_activeSpawner);
 
         return true;
     }

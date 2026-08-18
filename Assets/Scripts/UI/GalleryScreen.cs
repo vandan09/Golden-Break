@@ -5,10 +5,11 @@ using UnityEngine.UI;
 /// <summary>
 /// Scrollable gallery of completed ceramics (CLAUDE.md §3.5): thumbnail,
 /// completion date, and cumulative score per entry. Opens as a full-screen
-/// overlay above the HUD via its own "Gallery" button — the Home screen
-/// that would normally host this entry point is Phase 4 scope, so this
-/// button lives on gameplay's own canvas for now (documented deviation,
-/// see PROGRESS.md).
+/// overlay above the HUD. Its own floating "Gallery" button (Phase 3) has
+/// been removed now that HomeScreen exists to host that entry point, per
+/// this class's own prior documentation that the button's placement was
+/// temporary — Show()/Hide() remain the public API, called from
+/// HomeScreen now instead.
 ///
 /// Rebuilds its card list every time it's opened rather than reacting to
 /// a live event — GalleryManager has no OnEntryAdded event because
@@ -26,14 +27,20 @@ public sealed class GalleryScreen : MonoBehaviour
 
     private GalleryManager _galleryManager;
     private CeramicDefinition[] _ceramicPool;
+    private InputHandler _inputHandler;
     private GameObject _panel;
     private RectTransform _contentRect;
     private Text _emptyStateText;
 
-    public void Configure(GalleryManager galleryManager, CeramicDefinition[] ceramicPool)
+    // inputHandler is optional so any existing caller that doesn't pass
+    // one keeps compiling — but GameplayController always supplies it now,
+    // closing the "overlay doesn't block the world-space drag input
+    // underneath" gap (see InputHandler.InputEnabled's own doc comment).
+    public void Configure(GalleryManager galleryManager, CeramicDefinition[] ceramicPool, InputHandler inputHandler = null)
     {
         _galleryManager = galleryManager;
         _ceramicPool = ceramicPool;
+        _inputHandler = inputHandler;
 
         BuildUi();
         _panel.SetActive(false);
@@ -49,8 +56,6 @@ public sealed class GalleryScreen : MonoBehaviour
         canvasObject.AddComponent<CanvasScaler>();
         canvasObject.AddComponent<GraphicRaycaster>();
 
-        BuildOpenButton(canvasObject.transform);
-
         _panel = new GameObject("Panel");
         _panel.transform.SetParent(canvasObject.transform, false);
         var panelImage = _panel.AddComponent<Image>();
@@ -65,23 +70,6 @@ public sealed class GalleryScreen : MonoBehaviour
         BuildCloseButton(_panel.transform);
         BuildEmptyStateText(_panel.transform);
         BuildScrollView(_panel.transform);
-    }
-
-    private void BuildOpenButton(Transform parent)
-    {
-        var buttonObject = new GameObject("OpenGalleryButton");
-        buttonObject.transform.SetParent(parent, false);
-        buttonObject.AddComponent<Image>().color = UiPalette.Surface;
-        buttonObject.AddComponent<Button>().onClick.AddListener(Show);
-
-        var rect = buttonObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 1f);
-        rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -24f);
-        rect.sizeDelta = new Vector2(150f, 50f);
-
-        BuildFillCenteredText(buttonObject.transform, "Gallery", 20, UiPalette.TextPrimary);
     }
 
     private void BuildCloseButton(Transform parent)
@@ -287,10 +275,18 @@ public sealed class GalleryScreen : MonoBehaviour
     {
         RefreshCards();
         _panel.SetActive(true);
+        if (_inputHandler != null)
+        {
+            _inputHandler.InputEnabled = false;
+        }
     }
 
     private void Hide()
     {
         _panel.SetActive(false);
+        if (_inputHandler != null)
+        {
+            _inputHandler.InputEnabled = true;
+        }
     }
 }

@@ -17,6 +17,18 @@ public sealed class InputHandler : MonoBehaviour
     private PieceController _pieceController;
     private Camera _camera;
 
+    // Gameplay drag input is polled directly from the legacy Input class,
+    // not routed through uGUI's EventSystem/GraphicRaycaster — a
+    // full-screen overlay panel (Home, Gallery, Settings) sitting visibly
+    // on top does NOT, by itself, block a drag on the world-space grid
+    // underneath, since that's a completely separate input path from
+    // Button.onClick. Any screen that should block gameplay while open
+    // must explicitly set this false while showing and true again when
+    // it hides. Retroactively found and fixed for GalleryScreen too
+    // (Phase 3 never wired this — see PROGRESS.md) while adding it for
+    // the new Phase 4 overlay screens that need it.
+    public bool InputEnabled { get; set; } = true;
+
     public void Configure(PieceController pieceController, Camera camera)
     {
         _pieceController = pieceController;
@@ -25,7 +37,7 @@ public sealed class InputHandler : MonoBehaviour
 
     private void Update()
     {
-        if (_pieceController == null || _camera == null)
+        if (_pieceController == null || _camera == null || !InputEnabled)
         {
             return;
         }
