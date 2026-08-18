@@ -7,7 +7,7 @@
 ## Phase status
 - [x] Phase 0 — Project setup (fresh build, no GLYPH reuse — see deviations)
 - [x] Phase 1 — Grid and pieces (logic + presentation done, tested, verified end-to-end on-device)
-- [x] Phase 2 — Clearing and scoring (logic + presentation done, tested; visually verified on emulator — see notes on the manifest revert for what wasn't re-confirmed after it)
+- [x] Phase 2 — Clearing and scoring (logic + presentation done, tested; verified working end-to-end by the user on their own physical device, including the EventSystem fix for Play Again)
 - [ ] Phase 2 — Clearing and scoring
 - [ ] Phase 3 — kintsugi meta
 - [ ] Phase 4 — Retention and monetization
