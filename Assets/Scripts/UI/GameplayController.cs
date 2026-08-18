@@ -185,6 +185,10 @@ public sealed class GameplayController : MonoBehaviour
             galleryScreen.Configure(galleryManager, ceramicPool, inputHandler);
         }
 
+        // Constructed for its subscription side effects only, same as
+        // GameplaySaveTriggers above.
+        _ = new AnalyticsEventWiring(pieceController, saveTriggers, saveManager.Current, ceramicController?.Ceramic);
+
         var streakPopupObject = new GameObject("StreakPopup");
         var streakPopup = streakPopupObject.AddComponent<StreakPopup>();
         streakPopup.Configure();

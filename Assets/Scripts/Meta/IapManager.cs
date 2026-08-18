@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 /// <summary>
 /// In-app purchase entitlements (CLAUDE.md §5.2). Plain C#, not a
@@ -58,6 +59,11 @@ public sealed class IapManager
             () =>
             {
                 ApplyEntitlement(item);
+                AnalyticsManager.Instance?.LogEvent("iap_purchased", new Dictionary<string, object>
+                {
+                    { "item_id", storeItemId },
+                    { "price_usd", ResolvePriceUsd(item) }
+                });
                 onResult?.Invoke(true);
             },
             _ => onResult?.Invoke(false));
@@ -103,6 +109,27 @@ public sealed class IapManager
         // keeps "a purchase always saves" true by construction, not as an
         // incidental side effect of which item happened to be bought.
         _requestSave();
+    }
+
+    // CLAUDE.md §5.2's USD prices, for the iap_purchased analytics event's
+    // price_usd field. Reference values only, not a real store-quoted
+    // price — no store integration exists yet to fetch the actual localized
+    // price at purchase time.
+    private static double ResolvePriceUsd(IapItem item)
+    {
+        switch (item)
+        {
+            case IapItem.RemoveAds:
+                return 2.99;
+            case IapItem.ThemePack:
+                return 2.99;
+            case IapItem.Coins500:
+                return 0.99;
+            case IapItem.Coins2000:
+                return 2.99;
+            default:
+                return 0d;
+        }
     }
 
     private static string ResolveStoreItemId(IapItem item)

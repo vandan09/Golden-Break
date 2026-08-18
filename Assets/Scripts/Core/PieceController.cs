@@ -124,6 +124,12 @@ public sealed class PieceController : MonoBehaviour
     public event System.Action OnGameOver;
     public event System.Action<LineClearDetector.ClearResult, int> OnLinesCleared;
 
+    // Fires for the very first game (Configure) and every subsequent
+    // fresh game-cycle (RestartGame, StartDailyChallenge) — the single
+    // "a new game just began" signal analytics/UI code can hook instead
+    // of each caller needing to know about every entry point.
+    public event System.Action OnGameStarted;
+
     // standardSpawnerForContinue defaults to the same spawner as regular
     // dealing when not supplied — keeps every existing single-spawner
     // call site (tests, anywhere DDA/continue distinction doesn't matter)
@@ -148,6 +154,7 @@ public sealed class PieceController : MonoBehaviour
         }
 
         DealNewHand();
+        OnGameStarted?.Invoke();
     }
 
     public void RestartGame()
@@ -182,6 +189,7 @@ public sealed class PieceController : MonoBehaviour
         IsGameOver = false;
         _continueUsedThisGame = false;
         DealNewHand();
+        OnGameStarted?.Invoke();
     }
 
     // Starts a genuinely new hand-cycle (game start, after a full hand is

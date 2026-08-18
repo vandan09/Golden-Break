@@ -175,10 +175,17 @@ public sealed class GameplayHUD : MonoBehaviour
         if (_coinManager != null && _coinManager.TrySpend(Constants.UndoCostCoins))
         {
             _pieceController.TryUndo();
+            LogUndoOrRefreshUsed("undo_used", "coins");
         }
         else
         {
-            _rewardedAdController?.RequestFreeUndo(_ => { });
+            _rewardedAdController?.RequestFreeUndo(succeeded =>
+            {
+                if (succeeded)
+                {
+                    LogUndoOrRefreshUsed("undo_used", "rewarded");
+                }
+            });
         }
     }
 
@@ -192,11 +199,31 @@ public sealed class GameplayHUD : MonoBehaviour
         if (_coinManager != null && _coinManager.TrySpend(Constants.RefreshCostCoins))
         {
             _pieceController.TryRefresh();
+            LogUndoOrRefreshUsed("refresh_used", "coins");
         }
         else
         {
-            _rewardedAdController?.RequestFreeRefresh(_ => { });
+            _rewardedAdController?.RequestFreeRefresh(succeeded =>
+            {
+                if (succeeded)
+                {
+                    LogUndoOrRefreshUsed("refresh_used", "rewarded");
+                }
+            });
         }
+    }
+
+    // Matches CLAUDE.md §6.2's exact param lists: undo_used gets
+    // source + score_at_undo; refresh_used gets source only.
+    private void LogUndoOrRefreshUsed(string eventName, string source)
+    {
+        var parameters = new System.Collections.Generic.Dictionary<string, object> { { "source", source } };
+        if (eventName == "undo_used")
+        {
+            parameters["score_at_undo"] = _pieceController.Score.CurrentScore;
+        }
+
+        AnalyticsManager.Instance?.LogEvent(eventName, parameters);
     }
 
     private void OnLinesCleared(LineClearDetector.ClearResult result, int pointsAwarded)

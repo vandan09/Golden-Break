@@ -178,11 +178,21 @@ public sealed class GameOverScreen : MonoBehaviour
 
     private void OnContinueClicked()
     {
+        // Captured before the ad request — TryContinue (on success) resets
+        // CurrentScore to 0 as part of starting the next portion of the
+        // game, so "score at the moment continue was used" has to be read
+        // before that happens, not from the callback.
+        int scoreAtContinue = _pieceController.Score.CurrentScore;
+
         _rewardedAdController?.RequestContinue(succeeded =>
         {
             if (succeeded)
             {
                 _panel.SetActive(false);
+                AnalyticsManager.Instance?.LogEvent("continue_used", new System.Collections.Generic.Dictionary<string, object>
+                {
+                    { "score_at_continue", scoreAtContinue }
+                });
             }
             else
             {
