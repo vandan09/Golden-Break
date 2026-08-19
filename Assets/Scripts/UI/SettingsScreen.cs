@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -7,11 +8,14 @@ using UnityEngine.UI;
 /// Same runtime-built-uGUI full-screen-overlay pattern as GalleryScreen/
 /// GameOverScreen — no hand-authored scene objects (see PROGRESS.md).
 ///
-/// High-contrast only persists the flag for now — CLAUDE.md §3.9's actual
-/// visual effect (colourblind pattern opacity 15% -> 40%) needs the
-/// pattern-overlay art that doesn't exist yet (Phase 5/8 scope, same as
-/// every other block-colour pattern); toggling it here has no visible
-/// effect yet, honestly reflecting that rather than faking one.
+/// High-contrast (CLAUDE.md §3.9: "colourblind pattern opacity 15% ->
+/// 40%") toggles <see cref="UiPalette.HighContrastEnabled"/>, which every
+/// call to <see cref="UiPalette.GetBlockSprite"/> reads live — no need to
+/// push the new value through every screen individually. The injected
+/// onHighContrastChanged callback exists only so the composition root can
+/// force the currently-visible board(s) to repaint immediately, since a
+/// board that's already drawn won't otherwise notice the static flag
+/// changed until its next natural redraw.
 /// </summary>
 public sealed class SettingsScreen : MonoBehaviour
 {
@@ -23,6 +27,7 @@ public sealed class SettingsScreen : MonoBehaviour
     private SaveManager _saveManager;
     private InputHandler _inputHandler;
     private IapManager _iapManager;
+    private Action _onHighContrastChanged;
     private HomeScreen _homeScreen;
     private GameObject _panel;
     private Toggle _soundToggle;
@@ -42,11 +47,12 @@ public sealed class SettingsScreen : MonoBehaviour
         _homeScreen = homeScreen;
     }
 
-    public void Configure(SaveManager saveManager, InputHandler inputHandler, IapManager iapManager = null)
+    public void Configure(SaveManager saveManager, InputHandler inputHandler, IapManager iapManager = null, Action onHighContrastChanged = null)
     {
         _saveManager = saveManager;
         _inputHandler = inputHandler;
         _iapManager = iapManager;
+        _onHighContrastChanged = onHighContrastChanged;
 
         BuildUi();
         _panel.SetActive(false);
@@ -294,6 +300,8 @@ public sealed class SettingsScreen : MonoBehaviour
     private void OnHighContrastChanged(bool value)
     {
         _saveManager.Current.Settings.HighContrast = value;
+        UiPalette.HighContrastEnabled = value;
+        _onHighContrastChanged?.Invoke();
         _saveManager.Save();
     }
 

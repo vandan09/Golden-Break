@@ -79,6 +79,13 @@ public sealed class GameplayController : MonoBehaviour
             saveManager = new GameObject("SaveManager").AddComponent<SaveManager>();
         }
 
+        // CLAUDE.md §3.9: a returning player who already turned high
+        // contrast on should see it immediately, not just after
+        // re-toggling it — GetBlockSprite reads this static flag on every
+        // call, so setting it before the grids below build/refresh their
+        // first cells is enough.
+        UiPalette.HighContrastEnabled = saveManager.Current.Settings.HighContrast;
+
         if (FindObjectOfType<AudioManager>() == null)
         {
             new GameObject("AudioManager").AddComponent<AudioManager>();
@@ -295,7 +302,11 @@ public sealed class GameplayController : MonoBehaviour
         // ---- Home / overlays ---------------------------------------------
         var settingsScreenObject = new GameObject("SettingsScreen");
         var settingsScreen = settingsScreenObject.AddComponent<SettingsScreen>();
-        settingsScreen.Configure(saveManager, inputHandler, iapManager);
+        settingsScreen.Configure(saveManager, inputHandler, iapManager, () =>
+        {
+            grid.RefreshAllCells();
+            dailyGrid.RefreshAllCells();
+        });
 
         var dailyChallengeUiObject = new GameObject("DailyChallengeUI");
         var dailyChallengeUi = dailyChallengeUiObject.AddComponent<DailyChallengeUI>();

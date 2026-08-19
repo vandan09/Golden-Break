@@ -38,12 +38,24 @@ public sealed class PieceView : MonoBehaviour
             onReturn: block => block.gameObject.SetActive(false));
     }
 
+    // The patterned sprite (CLAUDE.md §8.1/§8.2, see PatternSprite) only
+    // applies to a real placed/held piece, identified by its colourId —
+    // the Color overload below is also used for the drag ghost with its
+    // own dynamic tint (valid-colour-at-reduced-alpha or the fixed
+    // invalid red), which the spec describes as flat colour only, no
+    // pattern ("Ghost preview: Same colour as the piece, 30% opacity, no
+    // glow").
     public void SetPiece(PieceDefinition piece, int colourId, float blockScale)
     {
-        SetPiece(piece, UiPalette.GetBlockColour(colourId), blockScale);
+        SetPieceInternal(piece, UiPalette.GetBlockColour(colourId), UiPalette.GetBlockSprite(colourId), blockScale);
     }
 
     public void SetPiece(PieceDefinition piece, Color colour, float blockScale)
+    {
+        SetPieceInternal(piece, colour, PlaceholderSprite.GetSolid(Color.white), blockScale);
+    }
+
+    private void SetPieceInternal(PieceDefinition piece, Color colour, Sprite sprite, float blockScale)
     {
         Initialize();
         ClearBlocks();
@@ -60,6 +72,7 @@ public sealed class PieceView : MonoBehaviour
         foreach (Vector2Int cell in piece.cells)
         {
             SpriteRenderer block = _blockPool.Get();
+            block.sprite = sprite;
             block.color = colour;
             block.transform.SetParent(transform, false);
 

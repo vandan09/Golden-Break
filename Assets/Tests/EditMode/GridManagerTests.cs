@@ -115,4 +115,26 @@ public class GridManagerTests
 
         Assert.AreEqual(UiPalette.EmptyCellFill, cellRenderer.color);
     }
+
+    [Test]
+    public void RefreshCell_AfterPlacingAPiece_UsesThatColourIdsPatternedSprite()
+    {
+        var piece = ScriptableObject.CreateInstance<PieceDefinition>();
+        piece.pieceId = "single";
+        piece.cells = new[] { new Vector2Int(0, 0) };
+
+        _gridManager.Board.Place(piece, 4, 4, colourId: 2);
+        _gridManager.RefreshCell(4, 4);
+
+        SpriteRenderer cellRenderer = _gridManager.transform.Find("Cell_4_4").GetComponent<SpriteRenderer>();
+        Assert.AreEqual(UiPalette.GetBlockSprite(2), cellRenderer.sprite);
+    }
+
+    [Test]
+    public void RefreshCell_EmptyCell_UsesTheFlatPlaceholderSprite()
+    {
+        SpriteRenderer cellRenderer = _gridManager.transform.Find("Cell_6_6").GetComponent<SpriteRenderer>();
+
+        Assert.AreEqual(PlaceholderSprite.GetSolid(Color.white), cellRenderer.sprite);
+    }
 }

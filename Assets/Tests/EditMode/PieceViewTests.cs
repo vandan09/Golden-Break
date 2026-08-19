@@ -105,4 +105,24 @@ public class PieceViewTests
         Assert.AreEqual(0, _pieceView.ActiveBlocks.Count);
         Assert.IsNull(_pieceView.CurrentPiece);
     }
+
+    [Test]
+    public void SetPiece_ByColourId_AppliesThatColourIdsPatternedSprite()
+    {
+        PieceDefinition single = MakePiece(new Vector2Int(0, 0));
+
+        _pieceView.SetPiece(single, colourId: 1, blockScale: 1f);
+
+        Assert.AreEqual(UiPalette.GetBlockSprite(1), _pieceView.ActiveBlocks[0].sprite);
+    }
+
+    [Test]
+    public void SetPiece_ByRawColour_UsesFlatSpriteNotAPattern()
+    {
+        PieceDefinition single = MakePiece(new Vector2Int(0, 0));
+
+        _pieceView.SetPiece(single, new Color(1f, 0.25f, 0.25f, 0.5f), blockScale: 1f);
+
+        Assert.AreEqual(PlaceholderSprite.GetSolid(Color.white), _pieceView.ActiveBlocks[0].sprite);
+    }
 }

@@ -120,7 +120,18 @@ public sealed class GridManager : MonoBehaviour
     {
         SpriteRenderer cellRenderer = _cellRenderers[Index(x, y)];
         bool filled = _board.IsFilled(x, y);
-        cellRenderer.color = filled ? UiPalette.GetBlockColour(_board.GetColourId(x, y)) : UiPalette.EmptyCellFill;
+
+        if (filled)
+        {
+            int colourId = _board.GetColourId(x, y);
+            cellRenderer.sprite = UiPalette.GetBlockSprite(colourId);
+            cellRenderer.color = UiPalette.GetBlockColour(colourId);
+        }
+        else
+        {
+            cellRenderer.sprite = PlaceholderSprite.GetSolid(Color.white);
+            cellRenderer.color = UiPalette.EmptyCellFill;
+        }
     }
 
     public static Vector3 CellToLocalPosition(int x, int y)
