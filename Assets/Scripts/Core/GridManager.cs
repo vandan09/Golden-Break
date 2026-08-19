@@ -132,6 +132,8 @@ public sealed class GridManager : MonoBehaviour
             cellRenderer.sprite = PlaceholderSprite.GetSolid(Color.white);
             cellRenderer.color = UiPalette.EmptyCellFill;
         }
+
+        Debug.Log($"[DIAG] RefreshCell grid={GetInstanceID()} ({x},{y}) filled={filled} colour={cellRenderer.color} active={cellRenderer.gameObject.activeInHierarchy} enabled={cellRenderer.enabled}");
     }
 
     public static Vector3 CellToLocalPosition(int x, int y)

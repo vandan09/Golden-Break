@@ -297,6 +297,8 @@ public sealed class PieceController : MonoBehaviour
         int slotIndex = _draggedSlotIndex;
         PieceDefinition piece = _hand[slotIndex];
 
+        Debug.Log($"[DIAG] EndDrag grid={_grid.GetInstanceID()} slot={slotIndex} valid={_lastGhostValid} origin={_lastGhostOrigin} pieceId={piece?.pieceId} cellCount={piece?.cells?.Length}");
+
         if (_lastGhostValid)
         {
             _grid.Board.Place(piece, _lastGhostOrigin.x, _lastGhostOrigin.y, _handColourIds[slotIndex]);

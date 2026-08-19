@@ -299,6 +299,8 @@ public sealed class GameplayController : MonoBehaviour
 
         dailyRoot.SetActive(false);
 
+        Debug.Log($"[DIAG] Awake complete: GridManager count={FindObjectsOfType<GridManager>().Length} PieceController count={FindObjectsOfType<PieceController>().Length} regularGrid={grid.GetInstanceID()} dailyGrid={dailyGrid.GetInstanceID()}");
+
         // ---- Home / overlays ---------------------------------------------
         var settingsScreenObject = new GameObject("SettingsScreen");
         var settingsScreen = settingsScreenObject.AddComponent<SettingsScreen>();
