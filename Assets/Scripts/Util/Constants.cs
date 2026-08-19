@@ -61,4 +61,5 @@ public static class Constants
     // obstacle" apart from "a piece I placed" at a glance.
     public const int DailyChallengeObstacleCellCount = 8;
     public const int ObstacleColourId = -2;
+    public const int CoinsForDailyPerfectRun = 20;
 }

@@ -65,6 +65,7 @@ public static class Strings
     public const string DailyChallengeNewBestTodayLabel = "New best today!";
     public const string DailyChallengeCoinsEarnedFormat = "+{0} coins";
     public const string DailyChallengeCloseButton = "Close";
+    public const string DailyChallengePerfectRunLabel = "Perfect run! Medallion filled";
 
     // Shared
     public const string CloseButtonSymbol = "X";

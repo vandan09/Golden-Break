@@ -18,10 +18,12 @@ public sealed class DailyChallengeGameOverScreen : MonoBehaviour
     private const int GhostFontSize = 20;
     private const int NewBestFontSize = 20;
     private const int CoinsEarnedFontSize = 18;
+    private const int PerfectRunFontSize = 18;
     private const int ButtonLabelFontSize = 22;
 
     private PieceController _pieceController;
     private DailyChallengeSaveTriggers _saveTriggers;
+    private DailyMedallionController _medallionController;
     private Action _onPlayAgain;
     private Action _onClose;
     private Func<DateTime> _nowProvider;
@@ -31,16 +33,19 @@ public sealed class DailyChallengeGameOverScreen : MonoBehaviour
     private Text _ghostText;
     private Text _newBestText;
     private Text _coinsEarnedText;
+    private Text _perfectRunText;
 
     public void Configure(
         PieceController pieceController,
         DailyChallengeSaveTriggers saveTriggers,
+        DailyMedallionController medallionController,
         Action onPlayAgain,
         Action onClose,
         Func<DateTime> nowProvider = null)
     {
         _pieceController = pieceController;
         _saveTriggers = saveTriggers;
+        _medallionController = medallionController;
         _onPlayAgain = onPlayAgain;
         _onClose = onClose;
         _nowProvider = nowProvider ?? (() => DateTime.UtcNow);
@@ -82,9 +87,10 @@ public sealed class DailyChallengeGameOverScreen : MonoBehaviour
         _ghostText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.58f), GhostFontSize, UiPalette.TextSecondary);
         _newBestText = CreateText(_panel.transform, Strings.DailyChallengeNewBestTodayLabel, new Vector2(0.5f, 0.52f), NewBestFontSize, UiPalette.GoldFill);
         _coinsEarnedText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.47f), CoinsEarnedFontSize, UiPalette.GoldFill);
+        _perfectRunText = CreateText(_panel.transform, Strings.DailyChallengePerfectRunLabel, new Vector2(0.5f, 0.41f), PerfectRunFontSize, UiPalette.GoldFill);
 
-        BuildButton(_panel.transform, Strings.GameOverPlayAgainButton, new Vector2(0.5f, 0.34f), OnPlayAgainClicked);
-        BuildButton(_panel.transform, Strings.DailyChallengeCloseButton, new Vector2(0.5f, 0.24f), OnCloseClicked);
+        BuildButton(_panel.transform, Strings.GameOverPlayAgainButton, new Vector2(0.5f, 0.30f), OnPlayAgainClicked);
+        BuildButton(_panel.transform, Strings.DailyChallengeCloseButton, new Vector2(0.5f, 0.20f), OnCloseClicked);
     }
 
     private static Text CreateText(Transform parent, string initialText, Vector2 anchor, int fontSize, Color colour)
@@ -147,6 +153,8 @@ public sealed class DailyChallengeGameOverScreen : MonoBehaviour
         {
             _coinsEarnedText.text = string.Format(Strings.DailyChallengeCoinsEarnedFormat, coinsAwarded);
         }
+
+        _perfectRunText.gameObject.SetActive(_medallionController != null && _medallionController.CompletedThisAttempt);
 
         _panel.SetActive(true);
     }

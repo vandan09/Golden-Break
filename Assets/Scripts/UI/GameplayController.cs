@@ -257,6 +257,31 @@ public sealed class GameplayController : MonoBehaviour
 
         var dailySaveTriggers = new DailyChallengeSaveTriggers(dailyPieceController, coinManager, saveManager.Current, saveManager.Save);
 
+        // A small, per-attempt kintsugi medallion (confirmed with the
+        // player: without any visible "shape to fill," Daily Challenge
+        // read as aimless and it wasn't obvious it had a natural end).
+        // Reuses tier 1's existing CeramicDefinition art — a fresh,
+        // never-persisted CeramicManager instance, not the regular
+        // ceramic's own persisted progress (see DailyMedallionController's
+        // own doc comment). Only built if ceramic art actually loaded,
+        // matching the same guard the regular ceramic block above uses.
+        DailyMedallionController dailyMedallionController = null;
+        if (ceramicPool.Length > 0)
+        {
+            CeramicDefinition medallionDefinition = FindCeramicDefinitionForTier(ceramicPool, tier: 1);
+
+            var dailyMedallionObject = new GameObject("DailyMedallion");
+            dailyMedallionObject.transform.SetParent(dailyRoot.transform, false);
+            dailyMedallionObject.transform.position = new Vector3(0f, GetCeramicCenterY(), 0f);
+            var dailyMedallionView = dailyMedallionObject.AddComponent<CeramicView>();
+            dailyMedallionView.Initialize();
+
+            var dailyMedallionControllerObject = new GameObject("DailyMedallionController");
+            dailyMedallionControllerObject.transform.SetParent(dailyRoot.transform, false);
+            dailyMedallionController = dailyMedallionControllerObject.AddComponent<DailyMedallionController>();
+            dailyMedallionController.Configure(dailyPieceController, dailyMedallionView, medallionDefinition, coinManager);
+        }
+
         var dailyHudObject = new GameObject("DailyChallengeHUD");
         dailyHudObject.transform.SetParent(dailyRoot.transform, false);
         var dailyHud = dailyHudObject.AddComponent<DailyChallengeHUD>();
@@ -281,7 +306,7 @@ public sealed class GameplayController : MonoBehaviour
         homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi);
 
         dailyHud.Configure(dailyPieceController, saveManager, ExitDailyChallengeToHome);
-        dailyGameOverScreen.Configure(dailyPieceController, dailySaveTriggers, StartOrReplayDailyAttempt, ExitDailyChallengeToHome);
+        dailyGameOverScreen.Configure(dailyPieceController, dailySaveTriggers, dailyMedallionController, StartOrReplayDailyAttempt, ExitDailyChallengeToHome);
 
         // Real gap caught on-device: no way back to the main menu or to
         // exit once Play was tapped, and Gallery/Settings/Daily Challenge
@@ -332,6 +357,19 @@ public sealed class GameplayController : MonoBehaviour
             dailyPieceController.RestartGame(freshSpawner, g => ApplyDailyObstacles(g, today));
             dailyHud.RefreshGhostAndBestTexts();
         }
+    }
+
+    private static CeramicDefinition FindCeramicDefinitionForTier(CeramicDefinition[] pool, int tier)
+    {
+        foreach (CeramicDefinition definition in pool)
+        {
+            if (definition.tier == tier)
+            {
+                return definition;
+            }
+        }
+
+        return null;
     }
 
     // CLAUDE.md §4.2 hard-mode mechanic 2 (confirmed with the player): a
