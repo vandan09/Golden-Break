@@ -341,19 +341,19 @@ evidence per phase — this checklist just mirrors its top-line status.
 ### Tasks
 
 **Visual polish:**
-- [ ] Finalize block rendering: colour, inner texture pattern, glow
-- [ ] Finalize grid rendering: cell states, borders, clear effects
-- [ ] Implement palette system as ScriptableObjects (Golden Dark default + 1 additional)
-- [ ] Implement high-contrast mode for colourblind accessibility
-- [ ] Finalize ceramic rendering: silhouettes, crack paths, gold fill
-- [ ] Final UI polish: alignment, spacing, transitions, consistent padding
-- [ ] Implement cross-promotion card in Settings (link to GLYPH)
+- [x] Finalize block rendering: colour, inner texture pattern, glow — the 5 patterns (dots/diagonal lines/crosshatch/horizontal lines/circles per §8.2) generated procedurally (`PatternSprite`), no sourced art needed; glow itself still needs real shader/art work, not done
+- [ ] Finalize grid rendering: cell states, borders, clear effects — cell states/clear-flash/pattern fill all done; a distinct border stroke around each cell (§8.1: "#2a2a4a border") not added yet
+- [ ] Implement palette system as ScriptableObjects (Golden Dark default + 1 additional) — `UiPalette` is currently a static class with Golden Dark's values hardcoded; a real ScriptableObject-based system touching every screen that references it is a bigger, focused refactor, not started yet
+- [x] Implement high-contrast mode for colourblind accessibility — `SettingsScreen`'s toggle now live-updates `UiPalette.HighContrastEnabled` (§3.9's "pattern opacity 15% -> 40%"), which the same procedural patterns read directly; both grids repaint immediately on toggle
+- [ ] Finalize ceramic rendering: silhouettes, crack paths, gold fill — crack-path/gold-fill/progress-bar/completion-celebration logic is fully built and tested (`CeramicView`/`CeramicManager`); the actual per-tier silhouette art is still a flat placeholder shape — §8.1 calls for "one SVG exported from Figma" per tier, real design work this can't substitute for
+- [ ] Final UI polish: alignment, spacing, transitions, consistent padding — no Figma mockups exist to polish toward; current layout is functional placeholder spacing, same as every other "no final art yet" system in this project
+- [x] Implement cross-promotion card in Settings (link to GLYPH) — built (`SettingsScreen.BuildCrossPromoCard`); logs intent instead of opening a URL since GLYPH's Play Store listing doesn't exist yet (**HUMAN**, once published)
 
 **Audio polish:**
-- [ ] Integrate all 9 sound effects per spec §8.3
-- [ ] Integrate lo-fi background music loop (reuse GLYPH's or source a second track)
-- [ ] Verify audio doesn't clip on rapid combos
-- [ ] Verify music loops seamlessly
+- [ ] Integrate all 9 sound effects per spec §8.3 — **HUMAN:** needs real clips sourced from Freesound.org/Mixkit per the spec's own instruction; `AudioManager`'s `SoundEffect` enum and every `PlaySound` call site already exist and are wired, waiting on actual `AudioClip` assets
+- [ ] Integrate lo-fi background music loop (reuse GLYPH's or source a second track) — **HUMAN:** same sourcing gap
+- [ ] Verify audio doesn't clip on rapid combos — can't verify without real audio files
+- [ ] Verify music loops seamlessly — can't verify without a real audio file
 
 **Store assets:**
 - [ ] **HUMAN:** create app icon 512×512 per spec §2.2
@@ -362,22 +362,22 @@ evidence per phase — this checklist just mirrors its top-line status.
 - [ ] **HUMAN:** write store listing per spec §9.2
 - [ ] **HUMAN:** update privacy policy to include Golden Break
 - [ ] **HUMAN:** complete content rating questionnaire
-- [ ] Complete `LICENSES.md` for any new assets
+- [x] Complete `LICENSES.md` for any new assets — created; documents DOTween (the one third-party asset actually imported) and flags sound/music/ceramic-art as pending entries once those are sourced
 
 **QA and testing:**
-- [ ] Run full EditMode test suite — all pass
-- [ ] Run PlayMode smoke test — passes
-- [ ] Profile on budget device: frame time < 16.6ms, 0 GC alloc in gameplay
-- [ ] Peak memory < 150MB (simpler than GLYPH, should be lower)
-- [ ] Verify APK < 35MB
+- [x] Run full EditMode test suite — all pass (377/377)
+- [ ] Run PlayMode smoke test — passes — no PlayMode test assembly exists yet, only EditMode; on-device manual verification has substituted for this so far
+- [ ] Profile on budget device: frame time < 16.6ms, 0 GC alloc in gameplay — not yet profiled with the Unity Profiler; needs a USB-connected profiling session, not just "no crashes observed"
+- [ ] Peak memory < 150MB (simpler than GLYPH, should be lower) — not yet measured
+- [ ] Verify APK < 35MB — current raw testing APK is 42MB (IL2CPP + dual ARMv7/ARM64 native libs, already at `ManagedStrippingLevel.High`); this is expected for a "fat" universal APK and should be re-measured against the actual Release-stage signed **AAB** instead, which is what the Play Store delivers per-architecture (roughly half this size per device) — not a real regression, but flagging rather than quietly assuming it'll be fine
 - [ ] Full offline test
 - [ ] Save edge cases: app kill during game, corrupt save, fresh install
 - [ ] All game-over/continue/restart flows
-- [ ] All ad placements on device
-- [ ] All IAP flows on device
+- [ ] All ad placements on device — **blocked until Phase 6's AppLovin MAX integration exists**
+- [ ] All IAP flows on device — **blocked until Phase 6's Play Billing integration exists**
 - [ ] 30 minutes continuous play with no crash
 - [ ] Memory leak check over 30-minute session
-- [ ] Fix all compiler warnings
+- [ ] Fix all compiler warnings — 1 remains: `AdManager.OnRewardedWatched` is declared but never invoked yet, since the real ad-SDK callback that would fire it is Phase 6 scope (`ShowRewarded`'s `TODO(ads-setup)`); resolves itself once Phase 6 wires the real callback, not worth suppressing or faking now
 
 **Release:**
 - [ ] **HUMAN:** generate release keystore (or reuse GLYPH publisher account keystore if same publisher)
@@ -403,19 +403,81 @@ evidence per phase — this checklist just mirrors its top-line status.
 - All store assets exist and meet Play Store requirements
 - No crashes in 30 minutes of continuous play
 - APK under 35MB, 60fps on budget device
-- Analytics events arriving in dashboard
+- Analytics events arriving in dashboard — **blocked until Phase 6's GameAnalytics integration exists**; local stub logging is verifiable now
 
 ### QA gate — full regression
 
 - [ ] Fresh install → play 5 games without issue
 - [ ] Complete one ceramic through normal play — full flow works
 - [ ] Daily challenge → daily streak → milestone reward → all function
-- [ ] All 4 rewarded placements work on device
-- [ ] Remove-ads IAP tested
+- [ ] All 4 rewarded placements work on device — **blocked until Phase 6's AppLovin MAX integration exists**
+- [ ] Remove-ads IAP tested — **blocked until Phase 6's Play Billing integration exists**
 - [ ] Save/load survives app kill, device restart, and corruption
 - [ ] Offline: entire game works in airplane mode
 - [ ] 30 minutes with no crash and no memory growth
-- [ ] Cross-promo link opens GLYPH store page
+- [ ] Cross-promo link opens GLYPH store page — **blocked until GLYPH's Play Store listing is published (HUMAN)**
+
+---
+
+## Phase 6 — Real SDK & native platform integration
+
+**Objective:** Everything Phase 4 built in stub/placeholder form (per CLAUDE.md §5.1's own required failure-safe behavior: "no reward granted, player never blocked") actually talks to a real service, once the accounts/credentials to do so exist.
+
+**Spec references:** §5 (monetization), §6 (analytics), §4.1/§4.3 (push notification / in-app review)
+
+Not part of the original 5-phase plan — split out once Phase 4's actual application code was verified complete and it became clear the remaining items are blocked on external prerequisites (developer accounts, store product setup, native platform API calls) rather than on more game logic. Every gating/entitlement/analytics-event decision this phase depends on is already built and unit-tested (`AdManager`, `AnalyticsManager`, `IapManager`, `PushNotificationManager`, `ReviewManager`) — every task below is specifically about wiring that already-correct logic to a real backend, not designing new behavior.
+
+### Tasks
+
+**AppLovin MAX (ads):**
+- [ ] **HUMAN:** create an AppLovin MAX account, register the app, obtain rewarded/interstitial/banner ad unit IDs
+- [ ] Import the AppLovin MAX Unity SDK
+- [ ] Replace `AdManager`'s placeholder ad unit ID constants with the real ones
+- [ ] Wire `MaxSdk.InitializeSdk()` into `AdManager.InitializeSdk()`
+- [ ] Wire real `MaxSdk.ShowRewardedAd`/`ShowInterstitial`/banner calls, replacing the `TODO(ads-setup)` stubs
+- [ ] Wire the real AppLovin MAX CMP (`MaxCmpService`) into `AdManager.RequestConsentIfRequired`, replacing the conservative-default stub
+
+**GameAnalytics:**
+- [ ] **HUMAN:** create/confirm a GameAnalytics account (same account as GLYPH per §6.1), obtain a new game key for Golden Break
+- [ ] Import the GameAnalytics Unity SDK
+- [ ] Wire `GameAnalytics.Initialize()` into `AnalyticsManager.InitializeSdk()`
+- [ ] Wire real `GameAnalytics.NewDesignEvent` calls into `AnalyticsManager.LogEvent`
+- [ ] Wire real `SetCustomDimension01/02/03` calls into `AnalyticsManager.SetCustomDimensions`
+- [ ] Verify all §6.2 events actually arrive in the GameAnalytics dashboard
+
+**Play Billing (IAP):**
+- [ ] **HUMAN:** create the 4 in-app products in Play Console (remove_ads, theme_pack, coins_500, coins_2000 — ids must match `IapManager.ResolveStoreItemId`)
+- [ ] Import Unity IAP (or Play Billing directly)
+- [ ] Wire the real purchase flow into `IapManager`'s `showPurchaseFlow` delegate
+- [ ] Implement real `IapManager.RestorePurchases` against the store's purchase history, replacing the always-"unavailable" stub
+
+**Native Android platform calls (no external account needed — pure integration work):**
+- [ ] Implement the real Android 13+ `POST_NOTIFICATIONS` permission request in `PushNotificationManager.RequestPermission`
+- [ ] Implement real 7pm-local daily-reminder scheduling (`AlarmManager`/`WorkManager`) in `PushNotificationManager.ScheduleDailyReminderIfEligible`
+- [ ] Import the Play Core review library and wire `ReviewManager.RequestReviewIfEligible`'s real `RequestReviewFlow`/`LaunchReviewFlow` call
+
+### Acceptance criteria
+
+- All 4 rewarded placements + interstitial + banner show real ads on a real device
+- The real AppLovin CMP dialog appears for EEA users
+- Analytics events are visible in the GameAnalytics dashboard within a few minutes of firing
+- A real purchase (sandbox/test account) grants the correct entitlement and persists it
+- Restore purchases re-grants entitlements after a fresh install
+- The real Android notification permission prompt appears on session 3
+- A 7pm-local streak reminder notification actually fires when eligible
+- The first completed ceramic triggers the real Play In-App Review sheet
+
+### QA gate
+
+- [ ] Each of the 4 rewarded placements tested end-to-end on device with a real (test) ad
+- [ ] Interstitial cadence (every 3rd game-over, none in first 3, cap 6/day) verified against real interstitial calls, not just the counter logic
+- [ ] Banner visible on Home/Gallery, absent everywhere else, on device
+- [ ] Purchase + restore tested with a Play Console test account
+- [ ] GDPR consent dialog tested with a VPN/test device set to an EEA region
+- [ ] Analytics dashboard cross-checked against the local stub logs for the same session (event counts match)
+- [ ] Push notification permission + 7pm scheduling tested on a real device across a day boundary
+- [ ] In-app review sheet appears after a real first ceramic completion
+- [ ] This closes the specific gaps flagged in Phase 5's own QA gate ("All 4 rewarded placements work on device," "Remove-ads IAP tested") — those Phase 5 items are blocked until this phase's HUMAN prerequisites are met, not skippable
 
 ---
 
@@ -429,7 +491,8 @@ evidence per phase — this checklist just mirrors its top-line status.
 | 3 | kintsugi meta | 3-4 days | Ceramic art assets |
 | 4 | Retention and monetization | 5-6 days | Ad account IDs |
 | 5 | Polish, QA, launch | 5-6 days | Icon, screenshots, store listing, keystore |
-| **Total** | | **~4 weeks** | |
+| 6 | Real SDK & native platform integration | 1-2 days once accounts exist | AppLovin MAX account, GameAnalytics account, Play Console product setup |
+| **Total** | | **~4 weeks + Phase 6** | |
 
 ---
 
