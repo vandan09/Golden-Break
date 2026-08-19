@@ -342,12 +342,25 @@ evidence per phase — this checklist just mirrors its top-line status.
 
 **Visual polish:**
 - [x] Finalize block rendering: colour, inner texture pattern, glow — the 5 patterns (dots/diagonal lines/crosshatch/horizontal lines/circles per §8.2) generated procedurally (`PatternSprite`), no sourced art needed; glow itself still needs real shader/art work, not done
-- [ ] Finalize grid rendering: cell states, borders, clear effects — cell states/clear-flash/pattern fill all done; a distinct border stroke around each cell (§8.1: "#2a2a4a border") not added yet
+- [ ] Finalize grid rendering: cell states, borders, clear effects — cell states/clear-flash/pattern fill all done; a distinct border stroke around each cell (§8.1: "#2a2a4a border") not added yet. Superseded by the Claude Design rework below (rounded cells + inset shadow, not a flat border) — will be done once, correctly, as part of that pass rather than twice
 - [ ] Implement palette system as ScriptableObjects (Golden Dark default + 1 additional) — `UiPalette` is currently a static class with Golden Dark's values hardcoded; a real ScriptableObject-based system touching every screen that references it is a bigger, focused refactor, not started yet
 - [x] Implement high-contrast mode for colourblind accessibility — `SettingsScreen`'s toggle now live-updates `UiPalette.HighContrastEnabled` (§3.9's "pattern opacity 15% -> 40%"), which the same procedural patterns read directly; both grids repaint immediately on toggle
-- [ ] Finalize ceramic rendering: silhouettes, crack paths, gold fill — crack-path/gold-fill/progress-bar/completion-celebration logic is fully built and tested (`CeramicView`/`CeramicManager`); the actual per-tier silhouette art is still a flat placeholder shape — §8.1 calls for "one SVG exported from Figma" per tier, real design work this can't substitute for
-- [ ] Final UI polish: alignment, spacing, transitions, consistent padding — no Figma mockups exist to polish toward; current layout is functional placeholder spacing, same as every other "no final art yet" system in this project
+- [ ] Finalize ceramic rendering: silhouettes, crack paths, gold fill — crack-path/gold-fill/progress-bar/completion-celebration *logic* is fully built and tested (`CeramicView`/`CeramicManager`); the actual per-tier silhouette shape was a flat placeholder until the Claude Design project below supplied real SVG bowl/vase/plate outlines + crack paths to build from — no longer blocked, see below
+- [ ] Final UI polish: alignment, spacing, transitions, consistent padding — no longer blocked either, now that the Claude Design mockups exist; see below
 - [x] Implement cross-promotion card in Settings (link to GLYPH) — built (`SettingsScreen.BuildCrossPromoCard`); logs intent instead of opening a URL since GLYPH's Play Store listing doesn't exist yet (**HUMAN**, once published)
+
+**Claude Design UI rework (source of truth: the player's "Golden Break UI Design" Claude Design project, https://claude.ai/design/p/f6bc7123-19dc-4328-bc46-d8a2b6f97e64) — supersedes the placeholder rendering built during Phases 1-4:**
+
+Discovered mid-Phase-5: the player had already built a full 6-screen design mockup (exact colours, layout, spacing, and real SVG path data for the ceramic bowl/crack shapes) that this project's placeholder rendering had drifted far from. This is the real target for "visual polish," not a generic cleanup pass — sequenced *after* the rest of Phase 5's other pending tasks per the player's explicit direction, reviewed one screen at a time as each is built rather than all at once.
+
+- [ ] Screen 1 — Home: ceramic-preview card above Play, gold-bordered glowing Play button with play-triangle icon, Daily Challenge button with streak-fire badge, icon-based Gallery/Settings buttons
+- [ ] Screen 2 — Gameplay: rounded (9px) grid cells with inset highlight/shadow, ceramic + gradient progress bar above the board, small circular icon buttons for undo/refresh (not bottom text buttons), rounded tray cards showing each piece as a mini-grid preview
+- [ ] Screen 3 — Gold Flow Moment: a dedicated beat (not currently a distinct state in this build) — particles animate from a clearing line up into the ceramic bowl, "+N" floats up, matches CLAUDE.md §3.8's "gold flows to the crack" description literally instead of the current instant flat-fill
+- [ ] Screen 4 — Game Over: compact GAME OVER label, large score, "New best!" pill badge, inline ceramic progress, gold-glow Continue button with an "AD" tag, outline-style Play Again, small "2x Double coins" text link
+- [ ] Screen 5 — Gallery: 2-column cards with the *actual* per-tier ceramic silhouette (bowl/vase/plate — real distinct shapes, sourced from the design's SVG path data), not a flat colour-square thumbnail
+- [ ] Screen 6 — App icon (512×512): kintsugi crack motif on a dark circular badge, per the mockup's exact SVG
+- [ ] Real bowl/vase/plate silhouette + crack-path SVG data (already supplied by the design, not something to invent) translated into Unity `LineRenderer`/mesh data for `CeramicDefinition`/`CeramicView`, replacing the current flat-rectangle placeholder for every tier
+- [ ] If any other screen or object design is needed beyond what's already in this Claude Design project (e.g. Settings, Daily Challenge screens, a specific piece-block glow treatment), ask the player rather than inventing one
 
 **Audio polish:**
 - [ ] Integrate all 9 sound effects per spec §8.3 — **HUMAN:** needs real clips sourced from Freesound.org/Mixkit per the spec's own instruction; `AudioManager`'s `SoundEffect` enum and every `PlaySound` call site already exist and are wired, waiting on actual `AudioClip` assets
