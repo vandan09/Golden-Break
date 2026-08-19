@@ -21,6 +21,12 @@ public static class UiPalette
         BlockCoral, BlockBlue, BlockGreen, BlockGold, BlockPurple
     };
 
+    // Daily Challenge's pre-filled obstacle cells (Constants.ObstacleColourId)
+    // render as this distinct neutral colour, never one of BlockColours'
+    // indices, so an obstacle reads visually different from a piece the
+    // player placed.
+    public static readonly Color BlockObstacle = FromHex("#4a4a5e");
+
     public static readonly Color TextPrimary = FromHex("#c0c0d8");
     public static readonly Color TextSecondary = FromHex("#7a7a9a");
     public static readonly Color GoldFill = FromHex("#e8c060");
@@ -29,6 +35,11 @@ public static class UiPalette
 
     public static Color GetBlockColour(int colourId)
     {
+        if (colourId == Constants.ObstacleColourId)
+        {
+            return BlockObstacle;
+        }
+
         if (colourId < 0)
         {
             return EmptyCellFill;

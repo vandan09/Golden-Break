@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -24,13 +25,30 @@ public sealed class BackButtonRouter : MonoBehaviour
     private GalleryScreen _galleryScreen;
     private SettingsScreen _settingsScreen;
     private DailyChallengeUI _dailyChallengeUI;
+    private Func<bool> _isDailyChallengeSessionActive;
+    private Action _exitDailyChallengeSession;
 
-    public void Configure(HomeScreen homeScreen, GalleryScreen galleryScreen, SettingsScreen settingsScreen, DailyChallengeUI dailyChallengeUI)
+    // isDailyChallengeSessionActive/exitDailyChallengeSession are optional
+    // hooks for a live Daily Challenge attempt (own grid, own HUD, no
+    // overlay screen of its own to report IsVisible the way
+    // Gallery/Settings/DailyChallengeUI do) — checked ahead of the
+    // fallback "show Home" case so a back-press from inside that separate
+    // session properly tears its view down instead of just stacking Home
+    // on top of it.
+    public void Configure(
+        HomeScreen homeScreen,
+        GalleryScreen galleryScreen,
+        SettingsScreen settingsScreen,
+        DailyChallengeUI dailyChallengeUI,
+        Func<bool> isDailyChallengeSessionActive = null,
+        Action exitDailyChallengeSession = null)
     {
         _homeScreen = homeScreen;
         _galleryScreen = galleryScreen;
         _settingsScreen = settingsScreen;
         _dailyChallengeUI = dailyChallengeUI;
+        _isDailyChallengeSessionActive = isDailyChallengeSessionActive;
+        _exitDailyChallengeSession = exitDailyChallengeSession;
     }
 
     private void Update()
@@ -55,6 +73,12 @@ public sealed class BackButtonRouter : MonoBehaviour
         if (_dailyChallengeUI != null && _dailyChallengeUI.IsVisible)
         {
             _dailyChallengeUI.Hide();
+            return;
+        }
+
+        if (_isDailyChallengeSessionActive != null && _isDailyChallengeSessionActive())
+        {
+            _exitDailyChallengeSession?.Invoke();
             return;
         }
 

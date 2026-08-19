@@ -83,6 +83,16 @@ public sealed class BoardState
         _cellColourId[Index(x, y)] = EmptyColourId;
     }
 
+    // Daily Challenge's pre-filled obstacle cells (CLAUDE.md §4.2 hard
+    // mode) exist before any piece is placed, so there's no
+    // PieceDefinition to validate against the way Place() requires — this
+    // marks a single cell filled directly, bypassing CanPlace entirely.
+    public void FillCell(int x, int y, int colourId)
+    {
+        AssertInBounds(x, y);
+        _cellColourId[Index(x, y)] = colourId;
+    }
+
     // Undo support (CLAUDE.md §4.5): empties exactly the cells a piece
     // occupies at originX/originY, the exact complement of Place(). Only
     // valid to call for a placement that hasn't triggered a line clear
@@ -100,28 +110,6 @@ public sealed class BoardState
         {
             ClearCell(originX + cell.x, originY + cell.y);
         }
-    }
-
-    // Regular play and a Daily Challenge session (CLAUDE.md §4.2) need to
-    // be genuinely independent — switching to one must not silently wipe
-    // the other's board. Captures/restores the raw cell contents so
-    // PieceController can snapshot a session before switching away and
-    // restore it exactly when switching back.
-    public int[] SnapshotColourIds()
-    {
-        var copy = new int[_cellColourId.Length];
-        Array.Copy(_cellColourId, copy, _cellColourId.Length);
-        return copy;
-    }
-
-    public void RestoreColourIds(int[] colourIds)
-    {
-        if (colourIds == null || colourIds.Length != _cellColourId.Length)
-        {
-            throw new ArgumentException($"BoardState: snapshot must contain exactly {_cellColourId.Length} cells.", nameof(colourIds));
-        }
-
-        Array.Copy(colourIds, _cellColourId, _cellColourId.Length);
     }
 
     private static void AssertInBounds(int x, int y)

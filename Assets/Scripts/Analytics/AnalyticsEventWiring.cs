@@ -126,14 +126,6 @@ public sealed class AnalyticsEventWiring
             Log("daily_streak", ("streak_count", _saveTriggers.LastStreakResult.Value.StreakCount));
         }
 
-        if (_saveTriggers.LastDailyChallengeCompletionResult.HasValue)
-        {
-            int score = _pieceController.Score.CurrentScore;
-            int ghostScore = DailyChallengeManager.ComputeGhostScore(DateTime.UtcNow);
-            string rankVsGhosts = score >= ghostScore ? "above_ghost" : "below_ghost";
-            Log("daily_challenge_complete", ("score", score), ("rank_vs_ghosts", rankVsGhosts));
-        }
-
         foreach (MilestoneManager.MilestoneResult milestone in _saveTriggers.LastMilestoneResults)
         {
             Log("milestone_reached", ("milestone_score", milestone.MilestoneScore));

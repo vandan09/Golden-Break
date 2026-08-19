@@ -54,19 +54,6 @@ public sealed class ScoreManager
         OnScoreChanged?.Invoke(CurrentScore);
     }
 
-    // Restores a previously-captured in-progress score, e.g. resuming a
-    // paused regular game after switching away to a Daily Challenge
-    // session (CLAUDE.md §4.2) and back — the two must be independently
-    // resumable, not silently reset. BestScore is deliberately untouched:
-    // it's a lifetime value tracked/persisted separately from any single
-    // session's snapshot.
-    public void RestoreState(int currentScore, float streakMultiplier)
-    {
-        CurrentScore = currentScore;
-        StreakMultiplier = streakMultiplier;
-        OnScoreChanged?.Invoke(CurrentScore);
-    }
-
     public static int CalculateBasePoints(int linesCleared)
     {
         switch (linesCleared)

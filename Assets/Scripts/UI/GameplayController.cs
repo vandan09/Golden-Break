@@ -21,6 +21,19 @@ using UnityEngine.SceneManagement;
 /// one-shot version built the entire grid inside the Boot scene, which
 /// was then destroyed the instant BootController switched scenes,
 /// leaving Gameplay's own untouched default camera on screen.
+///
+/// Builds two fully independent gameplay object graphs — a "regular"
+/// one (Grid/Tray/PieceController/HUD/GameOverScreen/Ceramic) and a
+/// "daily" one with its own Grid/Tray/PieceController/HUD/GameOverScreen
+/// — each grouped under its own root GameObject that this class toggles
+/// active/inactive when the player switches between them. Confirmed with
+/// the player: Daily Challenge must be a genuinely separate, harder
+/// challenge, not regular play reusing the same board/session with a
+/// badge on it (see PieceController's own doc comment for the bug this
+/// replaced). InputHandler is the one component both share — it owns no
+/// game state of its own, just "who does a raw touch currently route to,"
+/// so retargeting it when switching views doesn't reintroduce any
+/// cross-mode state sharing.
 /// </summary>
 public sealed class GameplayController : MonoBehaviour
 {
@@ -29,6 +42,8 @@ public sealed class GameplayController : MonoBehaviour
     private const float CameraPaddingCells = 1.5f;
     private const float CeramicVerticalGap = 0.6f;
     private const float CeramicAreaHalfHeight = 1.3f;
+
+    private bool _dailyChallengeSessionActive;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void RegisterSceneLoadedHandler()
@@ -92,17 +107,28 @@ public sealed class GameplayController : MonoBehaviour
             eventSystemObject.AddComponent<StandaloneInputModule>();
         }
 
+        var coinManager = new CoinManager(saveManager.Current.Coins);
+
+        var inputHandlerObject = new GameObject("InputHandler");
+        var inputHandler = inputHandlerObject.AddComponent<InputHandler>();
+
+        // ---- Regular play ----------------------------------------------
+        var regularRoot = new GameObject("RegularRoot");
+
         var gridObject = new GameObject("Grid");
+        gridObject.transform.SetParent(regularRoot.transform, false);
         var grid = gridObject.AddComponent<GridManager>();
         grid.BuildGrid();
 
         var trayObject = new GameObject("Tray");
+        trayObject.transform.SetParent(regularRoot.transform, false);
         float trayY = -GetGridHalfHeight() - TrayVerticalGap;
         trayObject.transform.position = new Vector3(0f, trayY, 0f);
         var tray = trayObject.AddComponent<PieceTrayController>();
         tray.BuildSlots();
 
         var pieceControllerObject = new GameObject("PieceController");
+        pieceControllerObject.transform.SetParent(regularRoot.transform, false);
         var pieceController = pieceControllerObject.AddComponent<PieceController>();
 
         // DDA weighting (CLAUDE.md §3.7) reads saveManager.Current live on
@@ -122,32 +148,11 @@ public sealed class GameplayController : MonoBehaviour
         var scoreManager = new ScoreManager(saveManager.Current.BestScore);
         pieceController.Configure(grid, tray, spawner, scoreManager, standardSpawnerForContinue);
 
-        // Keeps regular play and a Daily Challenge session genuinely
-        // independent (see GameModeSwitcher's own doc comment) — a real
-        // gap caught on-device where opening Daily Challenge silently
-        // wiped an in-progress regular game with no way back.
-        var gameModeSwitcher = new GameModeSwitcher(
-            pieceController,
-            spawner,
-            handsAlreadyDealt =>
-            {
-                PieceSpawner dailySpawner = DailyChallengeManager.CreateSpawner(pool, System.DateTime.UtcNow);
-                for (int i = 0; i < handsAlreadyDealt; i++)
-                {
-                    dailySpawner.DealHand(Constants.PieceHandSize);
-                }
-                return dailySpawner;
-            });
-
-        var coinManager = new CoinManager(saveManager.Current.Coins);
-
         // Constructed for its subscription side effects only — nothing
         // else in this method needs to hold a reference to it, same as
         // CeramicController's own OnLinesCleared subscription pattern.
         var saveTriggers = new GameplaySaveTriggers(pieceController, coinManager, saveManager.Current, saveManager.Save);
 
-        var inputHandlerObject = new GameObject("InputHandler");
-        var inputHandler = inputHandlerObject.AddComponent<InputHandler>();
         inputHandler.Configure(pieceController, Camera.main);
 
         var rewardedAdController = new RewardedAdController(
@@ -172,6 +177,7 @@ public sealed class GameplayController : MonoBehaviour
             });
 
         var hudObject = new GameObject("GameplayHUD");
+        hudObject.transform.SetParent(regularRoot.transform, false);
         var hud = hudObject.AddComponent<GameplayHUD>();
         hud.Configure(pieceController, saveManager, coinManager, rewardedAdController);
 
@@ -186,6 +192,7 @@ public sealed class GameplayController : MonoBehaviour
         else
         {
             var ceramicObject = new GameObject("Ceramic");
+            ceramicObject.transform.SetParent(regularRoot.transform, false);
             ceramicObject.transform.position = new Vector3(0f, GetCeramicCenterY(), 0f);
             var ceramicView = ceramicObject.AddComponent<CeramicView>();
             ceramicView.Initialize();
@@ -194,6 +201,7 @@ public sealed class GameplayController : MonoBehaviour
             var galleryManager = new GalleryManager(saveManager.Current.Gallery);
 
             var ceramicControllerObject = new GameObject("CeramicController");
+            ceramicControllerObject.transform.SetParent(regularRoot.transform, false);
             ceramicController = ceramicControllerObject.AddComponent<CeramicController>();
             ceramicController.Configure(pieceController, ceramicView, ceramicPool, ceramicManager, galleryManager, saveManager, coinManager);
 
@@ -207,24 +215,73 @@ public sealed class GameplayController : MonoBehaviour
         _ = new AnalyticsEventWiring(pieceController, saveTriggers, saveManager.Current, ceramicController?.Ceramic);
 
         var streakPopupObject = new GameObject("StreakPopup");
+        streakPopupObject.transform.SetParent(regularRoot.transform, false);
         var streakPopup = streakPopupObject.AddComponent<StreakPopup>();
         streakPopup.Configure();
 
         var gameOverObject = new GameObject("GameOverScreen");
+        gameOverObject.transform.SetParent(regularRoot.transform, false);
         var gameOverScreen = gameOverObject.AddComponent<GameOverScreen>();
         gameOverScreen.Configure(pieceController, saveTriggers, rewardedAdController, interstitialController, streakPopup, ceramicController);
 
+        // ---- Daily Challenge (fully separate session) -------------------
+        var dailyRoot = new GameObject("DailyRoot");
+
+        var dailyGridObject = new GameObject("DailyGrid");
+        dailyGridObject.transform.SetParent(dailyRoot.transform, false);
+        var dailyGrid = dailyGridObject.AddComponent<GridManager>();
+        dailyGrid.BuildGrid();
+
+        var dailyTrayObject = new GameObject("DailyTray");
+        dailyTrayObject.transform.SetParent(dailyRoot.transform, false);
+        dailyTrayObject.transform.position = new Vector3(0f, trayY, 0f);
+        var dailyTray = dailyTrayObject.AddComponent<PieceTrayController>();
+        dailyTray.BuildSlots();
+
+        var dailyPieceControllerObject = new GameObject("DailyPieceController");
+        dailyPieceControllerObject.transform.SetParent(dailyRoot.transform, false);
+        var dailyPieceController = dailyPieceControllerObject.AddComponent<PieceController>();
+
+        // No persisted "best score" of its own via ScoreManager — Daily
+        // Challenge's notion of "best" is per calendar day
+        // (SaveData.DailyBestScores), tracked by DailyChallengeSaveTriggers/
+        // DailyChallengeHUD below, not by this in-attempt score engine.
+        var dailyScoreManager = new ScoreManager(initialBestScore: 0);
+
+        // Configure() here only stands the controller up (drag/ghost
+        // views, event subscriptions) — the hand it deals is immediately
+        // discarded, since dailyRoot starts inactive and the real first
+        // attempt is dealt by StartOrReplayDailyAttempt below the first
+        // time the player actually taps Play.
+        dailyPieceController.Configure(dailyGrid, dailyTray, DailyChallengeManager.CreateSpawner(pool, System.DateTime.UtcNow), dailyScoreManager);
+
+        var dailySaveTriggers = new DailyChallengeSaveTriggers(dailyPieceController, coinManager, saveManager.Current, saveManager.Save);
+
+        var dailyHudObject = new GameObject("DailyChallengeHUD");
+        dailyHudObject.transform.SetParent(dailyRoot.transform, false);
+        var dailyHud = dailyHudObject.AddComponent<DailyChallengeHUD>();
+
+        var dailyGameOverObject = new GameObject("DailyChallengeGameOverScreen");
+        dailyGameOverObject.transform.SetParent(dailyRoot.transform, false);
+        var dailyGameOverScreen = dailyGameOverObject.AddComponent<DailyChallengeGameOverScreen>();
+
+        dailyRoot.SetActive(false);
+
+        // ---- Home / overlays ---------------------------------------------
         var settingsScreenObject = new GameObject("SettingsScreen");
         var settingsScreen = settingsScreenObject.AddComponent<SettingsScreen>();
         settingsScreen.Configure(saveManager, inputHandler, iapManager);
 
         var dailyChallengeUiObject = new GameObject("DailyChallengeUI");
         var dailyChallengeUi = dailyChallengeUiObject.AddComponent<DailyChallengeUI>();
-        dailyChallengeUi.Configure(saveManager, inputHandler, gameModeSwitcher.StartOrResumeDailyChallenge);
+        dailyChallengeUi.Configure(saveManager, inputHandler, EnterDailyChallenge);
 
         var homeScreenObject = new GameObject("HomeScreen");
         var homeScreen = homeScreenObject.AddComponent<HomeScreen>();
-        homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi, gameModeSwitcher.ResumeOrStartRegularGame);
+        homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi);
+
+        dailyHud.Configure(dailyPieceController, saveManager, ExitDailyChallengeToHome);
+        dailyGameOverScreen.Configure(dailyPieceController, dailySaveTriggers, StartOrReplayDailyAttempt, ExitDailyChallengeToHome);
 
         // Real gap caught on-device: no way back to the main menu or to
         // exit once Play was tapped, and Gallery/Settings/Daily Challenge
@@ -238,7 +295,54 @@ public sealed class GameplayController : MonoBehaviour
 
         var backButtonRouterObject = new GameObject("BackButtonRouter");
         var backButtonRouter = backButtonRouterObject.AddComponent<BackButtonRouter>();
-        backButtonRouter.Configure(homeScreen, galleryScreen, settingsScreen, dailyChallengeUi);
+        backButtonRouter.Configure(homeScreen, galleryScreen, settingsScreen, dailyChallengeUi, () => _dailyChallengeSessionActive, ExitDailyChallengeToHome);
+
+        // Local functions below are referenced above by name — C# hoists
+        // local functions within their enclosing method, so this is valid
+        // despite appearing after the call sites.
+        void EnterDailyChallenge()
+        {
+            regularRoot.SetActive(false);
+            dailyRoot.SetActive(true);
+            inputHandler.SetPieceController(dailyPieceController);
+            _dailyChallengeSessionActive = true;
+            StartOrReplayDailyAttempt();
+        }
+
+        void ExitDailyChallengeToHome()
+        {
+            dailyRoot.SetActive(false);
+            regularRoot.SetActive(true);
+            inputHandler.SetPieceController(pieceController);
+            _dailyChallengeSessionActive = false;
+            homeScreen.Show();
+        }
+
+        // Shared by "tap Play from the Daily Challenge screen" and
+        // "tap Play Again on the Daily Challenge game-over screen" — both
+        // must deal the identical seeded sequence from the very start
+        // (CLAUDE.md §4.2), which needs a brand-new PieceSpawner each
+        // time (see PieceController.RestartGame's own doc comment) plus
+        // the day's obstacle layout re-applied before that first hand is
+        // dealt.
+        void StartOrReplayDailyAttempt()
+        {
+            System.DateTime today = System.DateTime.UtcNow;
+            PieceSpawner freshSpawner = DailyChallengeManager.CreateSpawner(pool, today);
+            dailyPieceController.RestartGame(freshSpawner, g => ApplyDailyObstacles(g, today));
+            dailyHud.RefreshGhostAndBestTexts();
+        }
+    }
+
+    // CLAUDE.md §4.2 hard-mode mechanic 2 (confirmed with the player): a
+    // fixed set of cells starts already filled before the player's first
+    // move, seeded from the same date as the piece sequence.
+    private static void ApplyDailyObstacles(GridManager grid, System.DateTime date)
+    {
+        foreach (Vector2Int cell in DailyChallengeManager.GetObstacleCells(date))
+        {
+            grid.Board.FillCell(cell.x, cell.y, Constants.ObstacleColourId);
+        }
     }
 
     // CLAUDE.md §3.7: recomputed from saveManager.Current on every call

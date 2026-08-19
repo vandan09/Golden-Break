@@ -9,10 +9,11 @@ using UnityEngine.UI;
 /// full-screen-overlay pattern as GalleryScreen/SettingsScreen.
 ///
 /// Doesn't start the daily-challenge session itself — Play invokes an
-/// injected callback and leaves actually calling
-/// PieceController.StartDailyChallenge to whoever configured this (the
-/// composition root has the PieceController/PieceDefinition pool this
-/// screen has no business owning).
+/// injected callback and leaves the composition root (GameplayController)
+/// to activate its own, fully separate Daily Challenge object graph
+/// (own GridManager/PieceTrayController/PieceController, per
+/// PieceController's own doc comment) — this screen has no business
+/// owning any of that.
 /// </summary>
 public sealed class DailyChallengeUI : MonoBehaviour
 {
@@ -151,8 +152,9 @@ public sealed class DailyChallengeUI : MonoBehaviour
         // Deliberately does not go through Hide() — Play starts the
         // daily-challenge game, it must not bounce back to Home the way
         // the X button and the back button do. Re-enables input directly
-        // (Show() disabled it, and StartDailyChallenge itself has no
-        // notion of InputHandler to re-enable it as a side effect).
+        // (Show() disabled it, and the injected callback only builds/
+        // activates the Daily Challenge view, it has no notion of
+        // InputHandler to re-enable it as a side effect).
         _panel.SetActive(false);
         if (_inputHandler != null)
         {

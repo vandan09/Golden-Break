@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Vector2Int = UnityEngine.Vector2Int;
 
 /// <summary>
 /// Daily challenge seed (CLAUDE.md §4.2): one fixed piece sequence per
@@ -29,15 +30,58 @@ public static class DailyChallengeSeed
 /// </summary>
 public static class DailyChallengeManager
 {
-    public const int CompletionRewardCoins = 30;
+    public const int CompletionRewardCoins = Constants.CoinsForDailyChallengeCompletion;
 
     // No DDA weighting: §4.2's "same piece sequence for all players"
     // would break the moment two players had different DDA histories —
     // the daily challenge is deliberately the one place DDA never applies.
+    //
+    // Draws only from the "large" DDA size tier (confirmed with the
+    // player: Daily Challenge must be a genuinely harder, structurally
+    // separate mode, not regular play with a badge on it) — every attempt
+    // deals only the bigger, harder-to-place pieces, never the small ones
+    // DDA would normally hand a struggling regular-play session.
     public static PieceSpawner CreateSpawner(PieceDefinition[] pool, DateTime date)
     {
         int seed = DailyChallengeSeed.ComputeSeed(date);
-        return new PieceSpawner(pool, new Random(seed));
+        return new PieceSpawner(GetHardPool(pool), new Random(seed));
+    }
+
+    public static PieceDefinition[] GetHardPool(PieceDefinition[] pool)
+    {
+        var large = new List<PieceDefinition>();
+        foreach (PieceDefinition piece in pool)
+        {
+            if (DDAManager.GetSizeTier(piece.pieceId) == DDAManager.PieceSizeTier.Large)
+            {
+                large.Add(piece);
+            }
+        }
+
+        return large.ToArray();
+    }
+
+    // Hard-mode mechanic 2 (confirmed with the player): a fixed set of
+    // cells starts already filled before the player's first move, seeded
+    // from the same date so every player faces the identical layout — the
+    // ghost-score/leaderboard comparison (ComputeGhostScore) stays fair
+    // only if every attempt starts from the same board, not a random one.
+    public static Vector2Int[] GetObstacleCells(DateTime date)
+    {
+        int seed = DailyChallengeSeed.ComputeSeed(date);
+        var random = new Random(seed);
+        var cells = new HashSet<Vector2Int>();
+
+        while (cells.Count < Constants.DailyChallengeObstacleCellCount)
+        {
+            int x = random.Next(0, Constants.GridSize);
+            int y = random.Next(0, Constants.GridSize);
+            cells.Add(new Vector2Int(x, y));
+        }
+
+        var result = new Vector2Int[cells.Count];
+        cells.CopyTo(result);
+        return result;
     }
 
     public static bool IsCompletedToday(List<string> dailyCompleted, string todayIso)

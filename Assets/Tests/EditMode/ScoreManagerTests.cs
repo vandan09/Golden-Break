@@ -159,37 +159,4 @@ public class ScoreManagerTests
         Assert.AreEqual(4280, scoreManager.BestScore);
         Assert.AreEqual(0, scoreManager.CurrentScore);
     }
-
-    [Test]
-    public void RestoreState_SetsCurrentScoreAndStreakMultiplierExactly()
-    {
-        var scoreManager = new ScoreManager(initialBestScore: 100);
-
-        scoreManager.RestoreState(currentScore: 250, streakMultiplier: 2.5f);
-
-        Assert.AreEqual(250, scoreManager.CurrentScore);
-        Assert.AreEqual(2.5f, scoreManager.StreakMultiplier);
-    }
-
-    [Test]
-    public void RestoreState_DoesNotChangeBestScore()
-    {
-        var scoreManager = new ScoreManager(initialBestScore: 4280);
-
-        scoreManager.RestoreState(currentScore: 999999, streakMultiplier: 3f);
-
-        Assert.AreEqual(4280, scoreManager.BestScore, "BestScore is a lifetime value, not part of a session snapshot");
-    }
-
-    [Test]
-    public void RestoreState_FiresOnScoreChangedWithRestoredValue()
-    {
-        var scoreManager = new ScoreManager(initialBestScore: 0);
-        int? reportedScore = null;
-        scoreManager.OnScoreChanged += s => reportedScore = s;
-
-        scoreManager.RestoreState(currentScore: 60, streakMultiplier: 1.5f);
-
-        Assert.AreEqual(60, reportedScore);
-    }
 }

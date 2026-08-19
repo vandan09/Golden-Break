@@ -33,7 +33,6 @@ public static class Strings
     public const string HudRefreshButtonFormat = "Refresh ({0})";
     public const string HudStreakMultiplierFormat = "×{0} streak";
     public const string HudNewBest = "New best!";
-    public const string HudDailyChallengeBadge = "DAILY CHALLENGE";
 
     // Streak popup
     public const string StreakPopupFormat = "Day {0} streak! +{1} coins";
@@ -62,6 +61,10 @@ public static class Strings
     public const string DailyChallengeBestTodayFormat = "Best today: {0}";
     public const string DailyChallengeGhostScoreFormat = "Beat: {0}";
     public const string DailyChallengePlayButton = "Play";
+    public const string DailyChallengeGameOverTitle = "DAILY CHALLENGE COMPLETE";
+    public const string DailyChallengeNewBestTodayLabel = "New best today!";
+    public const string DailyChallengeCoinsEarnedFormat = "+{0} coins";
+    public const string DailyChallengeCloseButton = "Close";
 
     // Shared
     public const string CloseButtonSymbol = "X";

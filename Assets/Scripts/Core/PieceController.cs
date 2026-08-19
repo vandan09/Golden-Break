@@ -12,6 +12,15 @@ using UnityEngine;
 /// instances from the tray slots, not the tray slot's own view repurposed
 /// — the tray slot's transform never moves, so "bounce back" is just
 /// re-showing its content, with no position to restore.
+///
+/// One instance is always exactly one session — regular play and a Daily
+/// Challenge attempt (CLAUDE.md §4.2) are each their own separate
+/// PieceController (with their own GridManager/PieceTrayController), not
+/// one instance switching between modes. A real bug caught on-device:
+/// an earlier "swap the active spawner and snapshot/restore state"
+/// design let the two modes bleed into each other. Full instance
+/// separation makes that structurally impossible instead of relying on
+/// careful bookkeeping to prevent it.
 /// </summary>
 public sealed class PieceController : MonoBehaviour
 {
@@ -78,27 +87,8 @@ public sealed class PieceController : MonoBehaviour
     // undo/refresh) — reset only by RestartGame, never by DealNewHand.
     private bool _continueUsedThisGame;
 
-    // CLAUDE.md §4.2: the daily challenge's seeded sequence must hold for
-    // the *entire* session, not just the first hand — DealNewHand/
-    // TryRefresh both deal from _activeSpawner rather than the hardcoded
-    // DDA _spawner, so a refresh mid-daily-challenge still draws from the
-    // same deterministic per-day stream instead of silently falling back
-    // to the DDA pool. Defaults to _spawner for regular play; only
-    // StartDailyChallenge swaps it, and RestartGame always swaps it back.
-    private PieceSpawner _activeSpawner;
-    private bool _isDailyChallengeSession;
-
-    // How many hands have been dealt from _activeSpawner this session —
-    // needed to resync a seeded daily-challenge spawner's RNG position
-    // when resuming from a snapshot (see RestoreSnapshot): a fresh
-    // System.Random(seed) always starts at the beginning of the
-    // sequence, so the caller fast-forwards it by re-dealing (and
-    // discarding) this many hands before restoring.
-    private int _handsDealtThisSession;
-
     public bool IsDragging => _draggedSlotIndex >= 0;
     public bool IsGameOver { get; private set; }
-    public bool IsDailyChallengeSession => _isDailyChallengeSession;
     public PieceDefinition[] Hand => _hand;
     public GridManager Grid => _grid;
     public PieceTrayController Tray => _tray;
@@ -121,21 +111,16 @@ public sealed class PieceController : MonoBehaviour
         !IsGameOver;
 
     // CLAUDE.md §5.1: only offered once game-over has actually fired, and
-    // only once per game. Also unavailable during a daily-challenge
-    // session — CLAUDE.md never specifies how continue should interact
-    // with "one fixed game per day," and a rescue mechanic (whether
-    // drawing from the standard pool or the seeded one) undermines that
-    // framing regardless. Documented interpretation, not a literal spec
-    // reading.
-    public bool CanContinue => IsGameOver && !_continueUsedThisGame && !_isDailyChallengeSession;
+    // only once per game.
+    public bool CanContinue => IsGameOver && !_continueUsedThisGame;
 
     public event System.Action OnGameOver;
     public event System.Action<LineClearDetector.ClearResult, int> OnLinesCleared;
 
     // Fires for the very first game (Configure) and every subsequent
-    // fresh game-cycle (RestartGame, StartDailyChallenge) — the single
-    // "a new game just began" signal analytics/UI code can hook instead
-    // of each caller needing to know about every entry point.
+    // RestartGame — the single "a new game just began" signal analytics/
+    // UI code can hook instead of each caller needing to know about every
+    // entry point.
     public event System.Action OnGameStarted;
 
     // standardSpawnerForContinue defaults to the same spawner as regular
@@ -150,7 +135,6 @@ public sealed class PieceController : MonoBehaviour
         _grid = grid;
         _tray = tray;
         _spawner = spawner;
-        _activeSpawner = spawner;
         _standardSpawnerForContinue = standardSpawnerForContinue ?? spawner;
         _scoreManager = scoreManager;
         _scoreManager.OnNewBest += PlayNewBestFeedback;
@@ -165,38 +149,28 @@ public sealed class PieceController : MonoBehaviour
         OnGameStarted?.Invoke();
     }
 
-    public void RestartGame()
+    // spawner/setupBoard are both optional, used only by Daily Challenge's
+    // "Play Again" (CLAUDE.md §4.2): replaying the same day must deal the
+    // identical sequence from the very start, which means a *new*
+    // PieceSpawner (its System.Random would otherwise just continue from
+    // wherever the previous attempt left off, not restart) and the
+    // pre-filled obstacle cells re-applied before the first hand is dealt
+    // and checked for game-over, not after — CheckGameOver must see the
+    // real starting board, not a temporarily-empty one. Regular play's
+    // Play Again never passes either, so it behaves exactly as before.
+    public void RestartGame(PieceSpawner spawner = null, System.Action<GridManager> setupBoard = null)
     {
-        _isDailyChallengeSession = false;
-        _activeSpawner = _spawner;
-        RestartGameInternal();
-    }
-
-    // CLAUDE.md §4.2: swaps the whole session onto a caller-supplied
-    // seeded spawner (see DailyChallengeManager.CreateSpawner) so every
-    // deal — including a mid-session refresh — stays within that day's
-    // deterministic sequence. RestartGame (leaving daily challenge back
-    // to a regular game) always swaps back to the DDA spawner.
-    public void StartDailyChallenge(PieceSpawner dailySpawner)
-    {
-        if (dailySpawner == null)
+        if (spawner != null)
         {
-            throw new System.ArgumentNullException(nameof(dailySpawner));
+            _spawner = spawner;
         }
 
-        _isDailyChallengeSession = true;
-        _activeSpawner = dailySpawner;
-        RestartGameInternal();
-    }
-
-    private void RestartGameInternal()
-    {
         _grid.Board.Clear();
+        setupBoard?.Invoke(_grid);
         _grid.RefreshAllCells();
         _scoreManager.ResetForNewGame();
         IsGameOver = false;
         _continueUsedThisGame = false;
-        _handsDealtThisSession = 0;
         DealNewHand();
         OnGameStarted?.Invoke();
     }
@@ -211,12 +185,11 @@ public sealed class PieceController : MonoBehaviour
         _undoUsedThisHand = false;
         _refreshUsedThisHand = false;
         _lastPlacement = null;
-        DealHandCore(_activeSpawner);
+        DealHandCore(_spawner);
     }
 
     private void DealHandCore(PieceSpawner spawner)
     {
-        _handsDealtThisSession++;
         _hand = spawner.DealHand(Constants.PieceHandSize);
         _handColourIds = new int[_hand.Length];
         for (int i = 0; i < _handColourIds.Length; i++)
@@ -511,7 +484,7 @@ public sealed class PieceController : MonoBehaviour
 
         _refreshUsedThisHand = true;
         _lastPlacement = null;
-        DealHandCore(_activeSpawner);
+        DealHandCore(_spawner);
 
         return true;
     }
@@ -555,78 +528,6 @@ public sealed class PieceController : MonoBehaviour
                 _grid.RefreshCell(x, y);
             }
         }
-    }
-
-    // Regular play and a Daily Challenge session (CLAUDE.md §4.2) need to
-    // be genuinely independent sessions, each resumable from exactly
-    // where it was left — not one silently wiping the other, which was a
-    // real gap caught on-device (see PROGRESS.md). Captures everything
-    // needed to reproduce the board, hand, and score exactly; the caller
-    // (GameModeSwitcher) is responsible for holding onto snapshots and
-    // deciding when to capture/restore.
-    public sealed class GameStateSnapshot
-    {
-        public int[] BoardColourIds;
-        public PieceDefinition[] Hand;
-        public int[] HandColourIds;
-        public int CurrentScore;
-        public float StreakMultiplier;
-        public bool IsGameOver;
-        public bool ContinueUsedThisGame;
-        public int HandsDealtThisSession;
-    }
-
-    public GameStateSnapshot CaptureSnapshot()
-    {
-        return new GameStateSnapshot
-        {
-            BoardColourIds = _grid.Board.SnapshotColourIds(),
-            Hand = (PieceDefinition[])_hand.Clone(),
-            HandColourIds = (int[])_handColourIds.Clone(),
-            CurrentScore = _scoreManager.CurrentScore,
-            StreakMultiplier = _scoreManager.StreakMultiplier,
-            IsGameOver = IsGameOver,
-            ContinueUsedThisGame = _continueUsedThisGame,
-            HandsDealtThisSession = _handsDealtThisSession
-        };
-    }
-
-    // activeSpawner must already be positioned correctly for this
-    // snapshot (see GameModeSwitcher — a seeded daily-challenge spawner
-    // needs fast-forwarding by HandsDealtThisSession hands first, since a
-    // fresh System.Random(seed) always restarts at the beginning of the
-    // sequence). Undo/refresh-this-hand eligibility deliberately resets
-    // rather than being part of the snapshot — a minor, documented
-    // simplification: the alternative (also snapshotting those) is more
-    // state to carry for a corner case (undo/refresh exactly at the
-    // moment of switching modes) with little practical impact.
-    public void RestoreSnapshot(GameStateSnapshot snapshot, PieceSpawner activeSpawner, bool isDailyChallengeSession)
-    {
-        if (snapshot == null)
-        {
-            throw new System.ArgumentNullException(nameof(snapshot));
-        }
-
-        _activeSpawner = activeSpawner;
-        _isDailyChallengeSession = isDailyChallengeSession;
-        _handsDealtThisSession = snapshot.HandsDealtThisSession;
-
-        _grid.Board.RestoreColourIds(snapshot.BoardColourIds);
-        _grid.RefreshAllCells();
-
-        _hand = (PieceDefinition[])snapshot.Hand.Clone();
-        _handColourIds = (int[])snapshot.HandColourIds.Clone();
-        _tray.SetHand(_hand, _handColourIds);
-
-        _scoreManager.RestoreState(snapshot.CurrentScore, snapshot.StreakMultiplier);
-
-        IsGameOver = snapshot.IsGameOver;
-        _continueUsedThisGame = snapshot.ContinueUsedThisGame;
-        _undoUsedThisHand = false;
-        _refreshUsedThisHand = false;
-        _lastPlacement = null;
-
-        OnGameStarted?.Invoke();
     }
 
     private PieceView CreateChildPieceView(string name)

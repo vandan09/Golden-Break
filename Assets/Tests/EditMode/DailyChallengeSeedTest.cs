@@ -61,11 +61,14 @@ public class DailyChallengeSeedTest
         // permanent regression guard — if System.Random's algorithm ever
         // changed on some future .NET runtime/platform, this test would
         // catch it (CLAUDE.md §4.2's whole point: every device must deal
-        // the same sequence).
+        // the same sequence). CreateSpawner filters to the "large" DDA
+        // size tier (hard-mode mechanic, confirmed with the player), so
+        // this sequence only ever contains the 11 large piece ids, never
+        // any of the 9 small ones.
         string[] expected =
         {
-            "2x3", "2x1", "2x3", "L3", "J3", "1x3", "L", "L", "1x2", "2x2",
-            "J", "1x2", "J", "1x5", "L", "1x2", "2x2", "single", "1x2", "3x1",
+            "1x4", "3x1", "1x4", "4x1", "1x5", "J3", "2x3", "2x3", "3x1", "3x1",
+            "3x2", "1x3", "3x2", "5x1", "2x3", "1x3", "2x3", "1x3", "1x3", "J3",
         };
 
         for (int i = 0; i < expected.Length; i++)

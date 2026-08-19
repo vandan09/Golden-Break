@@ -52,4 +52,13 @@ public static class Constants
 
     // DDA save history (CLAUDE.md §3.7)
     public const int DdaLast10ScoresCapacity = 10;
+
+    // Daily Challenge hard mode (CLAUDE.md §4.2, confirmed with the
+    // player: a genuinely harder challenge, structurally separate from
+    // regular play rather than a reshuffled variant of it). Obstacle
+    // cells are marked with this reserved colour id rather than one of
+    // UiPalette.BlockColours' indices, so the player can tell "pre-filled
+    // obstacle" apart from "a piece I placed" at a glance.
+    public const int DailyChallengeObstacleCellCount = 8;
+    public const int ObstacleColourId = -2;
 }

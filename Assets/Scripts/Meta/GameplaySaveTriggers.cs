@@ -50,7 +50,6 @@ public sealed class GameplaySaveTriggers
     public int LastGameOverCoinsAwarded { get; private set; }
     public StreakManager.StreakResult? LastStreakResult { get; private set; }
     public IReadOnlyList<MilestoneManager.MilestoneResult> LastMilestoneResults { get; private set; } = new List<MilestoneManager.MilestoneResult>();
-    public DailyChallengeManager.CompletionResult? LastDailyChallengeCompletionResult { get; private set; }
 
     public GameplaySaveTriggers(PieceController pieceController, CoinManager coinManager, SaveData saveData, Action requestSave, Func<DateTime> nowProvider = null)
     {
@@ -98,7 +97,6 @@ public sealed class GameplaySaveTriggers
         DateTime today = _nowProvider();
         ApplyStreak(today);
         ApplyMilestones(score.CurrentScore);
-        ApplyDailyChallengeCompletion(today, score.CurrentScore);
 
         // Earn() above already fired OnCoinBalanceChanged synchronously,
         // which requests its own save — this explicit call is deliberate,
@@ -151,27 +149,6 @@ public sealed class GameplaySaveTriggers
             {
                 _saveData.IapThemesOwned.Add(milestone.ThemeUnlocked);
             }
-        }
-    }
-
-    // CLAUDE.md §4.2: awards the 30-coin daily-challenge reward and
-    // records today's best score — only when this game-over ends a
-    // session PieceController.StartDailyChallenge actually started.
-    // Regular games never touch daily_completed/daily_best_scores.
-    private void ApplyDailyChallengeCompletion(DateTime today, int score)
-    {
-        if (!_pieceController.IsDailyChallengeSession)
-        {
-            return;
-        }
-
-        string todayIso = today.ToString("yyyy-MM-dd");
-        DailyChallengeManager.CompletionResult result = DailyChallengeManager.RecordCompletion(_saveData.DailyCompleted, _saveData.DailyBestScores, todayIso, score);
-        LastDailyChallengeCompletionResult = result;
-
-        if (result.CoinsAwarded > 0)
-        {
-            _coinManager.Earn(result.CoinsAwarded);
         }
     }
 

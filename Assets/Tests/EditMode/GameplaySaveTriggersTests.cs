@@ -234,24 +234,6 @@ public class GameplaySaveTriggersTests
         FillRemainingCellsAndForceGameOver();
 
         Assert.AreEqual(0, _saveData.DailyCompleted.Count);
-        Assert.IsFalse(_saveTriggers.LastDailyChallengeCompletionResult.HasValue);
-    }
-
-    [Test]
-    public void GameOver_DuringDailyChallengeSession_AwardsCompletionCoinsAndRecordsBest()
-    {
-        var dailySpawner = new PieceSpawner(new[] { _singleCellPiece }, new Random(1));
-        _controller.StartDailyChallenge(dailySpawner);
-
-        FillRemainingCellsAndForceGameOver();
-
-        Assert.IsTrue(_saveTriggers.LastDailyChallengeCompletionResult.HasValue);
-        Assert.IsTrue(_saveTriggers.LastDailyChallengeCompletionResult.Value.IsFirstCompletionToday);
-        Assert.AreEqual(1, _saveData.DailyCompleted.Count);
-        Assert.AreEqual(0, _saveData.DailyBestScores["2026-08-18"]);
-        // Base(5) + day-1 streak(10) + daily challenge(30) — no new-best
-        // bonus check here since a score of 0 doesn't beat an initial 0 best.
-        Assert.AreEqual(Constants.CoinsForGameOver + 10 + DailyChallengeManager.CompletionRewardCoins, _coins.Balance);
     }
 
     [Test]

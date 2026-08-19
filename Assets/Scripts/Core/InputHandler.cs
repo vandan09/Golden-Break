@@ -35,6 +35,19 @@ public sealed class InputHandler : MonoBehaviour
         _camera = camera != null ? camera : Camera.main;
     }
 
+    // Regular play and a Daily Challenge attempt are two fully separate
+    // PieceController instances (see that class's own doc comment) that
+    // are never both visible/active at once — repointing this one
+    // MonoBehaviour's target when GameplayController switches which board
+    // is showing is just "who does a raw touch/drag currently get routed
+    // to," not shared game state. InputHandler itself owns no game state
+    // of its own (only this reference and InputEnabled) to bleed between
+    // the two.
+    public void SetPieceController(PieceController pieceController)
+    {
+        _pieceController = pieceController;
+    }
+
     private void Update()
     {
         if (_pieceController == null || _camera == null || !InputEnabled)
