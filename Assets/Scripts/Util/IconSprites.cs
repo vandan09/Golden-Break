@@ -221,6 +221,52 @@ public static class FlameIconSprite
     }
 }
 
+/// <summary>Left-pointing chevron (back-navigation glyph, e.g. Gallery's header).</summary>
+public static class ChevronLeftSprite
+{
+    private const int Size = 32;
+    private const float StrokeWidth = 3f;
+    private static Sprite _cached;
+
+    public static Sprite Get()
+    {
+        if (_cached != null)
+        {
+            return _cached;
+        }
+
+        var texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+        var pixels = new Color[Size * Size];
+
+        Vector2 top = new Vector2(20, 8);
+        Vector2 mid = new Vector2(11, 16);
+        Vector2 bottom = new Vector2(20, 24);
+
+        for (int y = 0; y < Size; y++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                Vector2 p = new Vector2(x + 0.5f, y + 0.5f);
+                bool onLine = DistanceToSegment(p, top, mid) <= StrokeWidth * 0.5f || DistanceToSegment(p, mid, bottom) <= StrokeWidth * 0.5f;
+                pixels[(y * Size) + x] = onLine ? Color.white : Color.clear;
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+        _cached = Sprite.Create(texture, new Rect(0, 0, Size, Size), new Vector2(0.5f, 0.5f), 100f);
+        return _cached;
+    }
+
+    private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
+    {
+        Vector2 ab = b - a;
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(ab.sqrMagnitude, 0.0001f));
+        Vector2 closest = a + (t * ab);
+        return Vector2.Distance(p, closest);
+    }
+}
+
 internal static class IconShapeMath
 {
     public static bool IsInsideRoundedRect(Vector2 p, float left, float bottom, float width, float height, float radius)

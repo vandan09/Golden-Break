@@ -133,6 +133,18 @@ public sealed class GridManager : MonoBehaviour
             cellRenderer.color = UiPalette.EmptyCellFill;
         }
 
+        // REVERTED CANDIDATE FIX (see PROGRESS.md OPEN BUG): tried
+        // toggling cellRenderer.enabled off/on here as a workaround for a
+        // documented Unity mobile/IL2CPP "stale SpriteRenderer" gotcha.
+        // Proven actively harmful, not just ineffective: it turned a
+        // previously-passing Editor PlayMode test (GridRenderingPlayModeTests,
+        // real Direct3D rendering) into a failing one with the exact same
+        // "cell reports correct data but renders as empty" symptom this
+        // bug is about — i.e. the toggle itself can cause Unity to skip
+        // rendering a renderer for a frame. Left as a documented dead end
+        // rather than silently removed, since "toggling .enabled has real
+        // rendering side effects" is a genuine, reusable finding for
+        // whoever picks this bug up next.
         Debug.Log($"[DIAG] RefreshCell grid={GetInstanceID()} ({x},{y}) filled={filled} colour={cellRenderer.color} active={cellRenderer.gameObject.activeInHierarchy} enabled={cellRenderer.enabled}");
     }
 

@@ -27,9 +27,6 @@ using UnityEngine.UI;
 /// </summary>
 public sealed class HomeScreen : MonoBehaviour
 {
-    private const float ReferenceWidth = 390f;
-    private const float ReferenceHeight = 844f;
-
     private const float SidePadding = 24f;
     private const float TopPadding = 64f;
     private const float BottomPadding = 40f;
@@ -171,22 +168,10 @@ public sealed class HomeScreen : MonoBehaviour
 
     private void BuildUi()
     {
-        var canvasObject = new GameObject("HomeCanvas");
-        canvasObject.transform.SetParent(transform, false);
-        var canvas = canvasObject.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 25; // above every other overlay — the very first thing the player sees
-
-        var scaler = canvasObject.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(ReferenceWidth, ReferenceHeight);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = 1f; // match height — portrait phones vary more in width than height
-
-        canvasObject.AddComponent<GraphicRaycaster>();
+        Canvas canvas = ResponsiveCanvasSetup.BuildCanvas(transform, "HomeCanvas", sortingOrder: 25); // above every other overlay — the very first thing the player sees
 
         _panel = new GameObject("Panel");
-        _panel.transform.SetParent(canvasObject.transform, false);
+        _panel.transform.SetParent(canvas.transform, false);
         var panelImage = _panel.AddComponent<Image>();
         panelImage.color = UiPalette.Background;
         var panelRect = _panel.GetComponent<RectTransform>();
@@ -195,8 +180,13 @@ public sealed class HomeScreen : MonoBehaviour
         panelRect.offsetMin = Vector2.zero;
         panelRect.offsetMax = Vector2.zero;
 
-        BuildTopGroup(_panel.transform);
-        BuildBottomGroup(_panel.transform);
+        // Background fills the full screen edge-to-edge; real content sits
+        // inside the safe area so nothing hides under a notch/punch-hole
+        // camera/rounded corner.
+        RectTransform safeArea = ResponsiveCanvasSetup.BuildSafeArea(_panel.transform);
+
+        BuildTopGroup(safeArea);
+        BuildBottomGroup(safeArea);
     }
 
     private void BuildTopGroup(Transform parent)

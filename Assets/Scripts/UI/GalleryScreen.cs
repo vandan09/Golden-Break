@@ -16,21 +16,34 @@ using UnityEngine.UI;
 /// nothing needs one yet: the screen is closed during play, so "always
 /// current when shown" is sufficient and simpler than keeping a hidden
 /// view in sync in real time.
+///
+/// Layout is Claude Design UI rework Screen 5 (BUILD_PLAN.md): 2-column
+/// cards showing each ceramic's *real* silhouette (<see cref="UiCeramicPreview"/>,
+/// fully gold since a gallery entry is always a completed ceramic) instead
+/// of the flat colour-square thumbnail this screen used before.
 /// </summary>
 public sealed class GalleryScreen : MonoBehaviour
 {
-    private const int TitleFontSize = 32;
-    private const int CardTierFontSize = 24;
-    private const int CardDetailFontSize = 18;
-    private const float CardHeight = 110f;
-    private const float CardSpacing = 16f;
+    private const float SidePadding = 20f;
+    private const float TopPadding = 22f;
+    private const float BottomPadding = 20f;
+    private const float HeaderHeight = 28f;
+    private const float GridTopGap = 16f;
+    private const float ColumnGap = 14f;
+    private const float RowGap = 14f;
+    private const float ThumbnailHeight = 100f;
+    private const float CardPadding = 12f;
+
+    private const int TitleFontSize = 20;
+    private const int CardTierFontSize = 14;
+    private const int CardDetailFontSize = 12;
 
     private GalleryManager _galleryManager;
     private CeramicDefinition[] _ceramicPool;
     private InputHandler _inputHandler;
     private HomeScreen _homeScreen;
     private GameObject _panel;
-    private RectTransform _contentRect;
+    private RectTransform _gridContentRect;
     private Text _emptyStateText;
 
     // Set post-construction (GameplayController builds HomeScreen last).
@@ -60,16 +73,10 @@ public sealed class GalleryScreen : MonoBehaviour
 
     private void BuildUi()
     {
-        var canvasObject = new GameObject("GalleryCanvas");
-        canvasObject.transform.SetParent(transform, false);
-        var canvas = canvasObject.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 15; // above GameOverScreen (10) — gallery can be opened over a fresh game too
-        canvasObject.AddComponent<CanvasScaler>();
-        canvasObject.AddComponent<GraphicRaycaster>();
+        Canvas canvas = ResponsiveCanvasSetup.BuildCanvas(transform, "GalleryCanvas", sortingOrder: 15); // above GameOverScreen (10) — gallery can be opened over a fresh game too
 
         _panel = new GameObject("Panel");
-        _panel.transform.SetParent(canvasObject.transform, false);
+        _panel.transform.SetParent(canvas.transform, false);
         var panelImage = _panel.AddComponent<Image>();
         panelImage.color = UiPalette.Background;
         var panelRect = _panel.GetComponent<RectTransform>();
@@ -78,46 +85,58 @@ public sealed class GalleryScreen : MonoBehaviour
         panelRect.offsetMin = Vector2.zero;
         panelRect.offsetMax = Vector2.zero;
 
-        BuildTitleText(_panel.transform);
-        BuildCloseButton(_panel.transform);
-        BuildEmptyStateText(_panel.transform);
-        BuildScrollView(_panel.transform);
+        RectTransform safeArea = ResponsiveCanvasSetup.BuildSafeArea(_panel.transform);
+
+        BuildHeader(safeArea);
+        BuildEmptyStateText(safeArea);
+        BuildScrollView(safeArea);
     }
 
-    private void BuildCloseButton(Transform parent)
+    private void BuildHeader(Transform parent)
     {
-        var buttonObject = new GameObject("CloseButton");
-        buttonObject.transform.SetParent(parent, false);
-        buttonObject.AddComponent<Image>().color = UiPalette.Surface;
-        buttonObject.AddComponent<Button>().onClick.AddListener(Hide);
+        var headerObject = new GameObject("Header");
+        var headerRect = headerObject.AddComponent<RectTransform>();
+        headerObject.transform.SetParent(parent, false);
+        headerRect.anchorMin = new Vector2(0f, 1f);
+        headerRect.anchorMax = new Vector2(1f, 1f);
+        headerRect.pivot = new Vector2(0.5f, 1f);
+        headerRect.offsetMin = new Vector2(SidePadding, -(TopPadding + HeaderHeight));
+        headerRect.offsetMax = new Vector2(-SidePadding, -TopPadding);
 
-        var rect = buttonObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(1f, 1f);
-        rect.anchorMax = new Vector2(1f, 1f);
-        rect.pivot = new Vector2(1f, 1f);
-        rect.anchoredPosition = new Vector2(-20f, -20f);
-        rect.sizeDelta = new Vector2(60f, 50f);
+        var layout = headerObject.AddComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleLeft;
+        layout.spacing = 12f;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
 
-        BuildFillCenteredText(buttonObject.transform, Strings.CloseButtonSymbol, 24, UiPalette.TextPrimary);
-    }
+        var button = headerObject.AddComponent<Button>();
+        button.transition = Selectable.Transition.None;
+        button.onClick.AddListener(Hide);
 
-    private void BuildTitleText(Transform parent)
-    {
-        var textObject = new GameObject("Title");
-        textObject.transform.SetParent(parent, false);
-        var text = textObject.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        text.fontSize = TitleFontSize;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.color = UiPalette.TextPrimary;
-        text.text = Strings.GalleryTitle;
+        var backIconObject = new GameObject("BackIcon");
+        var backIconRect = backIconObject.AddComponent<RectTransform>();
+        backIconObject.transform.SetParent(headerObject.transform, false);
+        backIconRect.sizeDelta = new Vector2(18f, 18f);
+        var backIconImage = backIconObject.AddComponent<Image>();
+        backIconImage.sprite = ChevronLeftSprite.Get();
+        backIconImage.color = UiPalette.TextSecondary;
+        var backIconLayoutElement = backIconObject.AddComponent<LayoutElement>();
+        backIconLayoutElement.preferredWidth = 18f;
+        backIconLayoutElement.preferredHeight = 18f;
 
-        var rect = textObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 1f);
-        rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -20f);
-        rect.sizeDelta = new Vector2(400f, 60f);
+        var titleObject = new GameObject("Title");
+        var titleRect = titleObject.AddComponent<RectTransform>();
+        titleObject.transform.SetParent(headerObject.transform, false);
+        var titleText = titleObject.AddComponent<Text>();
+        titleText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        titleText.fontSize = TitleFontSize;
+        titleText.fontStyle = FontStyle.Bold;
+        titleText.alignment = TextAnchor.MiddleLeft;
+        titleText.color = UiPalette.TextPrimary;
+        titleText.text = Strings.GalleryTitle;
+        var titleLayoutElement = titleObject.AddComponent<LayoutElement>();
+        titleLayoutElement.preferredWidth = 200f;
+        titleLayoutElement.preferredHeight = HeaderHeight;
     }
 
     private void BuildEmptyStateText(Transform parent)
@@ -126,7 +145,7 @@ public sealed class GalleryScreen : MonoBehaviour
         textObject.transform.SetParent(parent, false);
         var text = textObject.AddComponent<Text>();
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        text.fontSize = 22;
+        text.fontSize = 18;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = UiPalette.TextSecondary;
         text.text = Strings.GalleryEmptyState;
@@ -146,10 +165,10 @@ public sealed class GalleryScreen : MonoBehaviour
         scrollObject.transform.SetParent(parent, false);
         var scrollRect = scrollObject.AddComponent<ScrollRect>();
         var scrollRectTransform = scrollObject.GetComponent<RectTransform>();
-        scrollRectTransform.anchorMin = new Vector2(0.05f, 0.08f);
-        scrollRectTransform.anchorMax = new Vector2(0.95f, 0.82f);
-        scrollRectTransform.offsetMin = Vector2.zero;
-        scrollRectTransform.offsetMax = Vector2.zero;
+        scrollRectTransform.anchorMin = new Vector2(0f, 0f);
+        scrollRectTransform.anchorMax = new Vector2(1f, 1f);
+        scrollRectTransform.offsetMin = new Vector2(SidePadding, BottomPadding);
+        scrollRectTransform.offsetMax = new Vector2(-SidePadding, -(TopPadding + HeaderHeight + GridTopGap));
 
         var viewportObject = new GameObject("Viewport");
         viewportObject.transform.SetParent(scrollObject.transform, false);
@@ -164,23 +183,30 @@ public sealed class GalleryScreen : MonoBehaviour
 
         var contentObject = new GameObject("Content");
         contentObject.transform.SetParent(viewportObject.transform, false);
-        _contentRect = contentObject.AddComponent<RectTransform>();
-        _contentRect.anchorMin = new Vector2(0f, 1f);
-        _contentRect.anchorMax = new Vector2(1f, 1f);
-        _contentRect.pivot = new Vector2(0.5f, 1f);
-        _contentRect.anchoredPosition = Vector2.zero;
+        _gridContentRect = contentObject.AddComponent<RectTransform>();
+        _gridContentRect.anchorMin = new Vector2(0f, 1f);
+        _gridContentRect.anchorMax = new Vector2(1f, 1f);
+        _gridContentRect.pivot = new Vector2(0.5f, 1f);
+        _gridContentRect.anchoredPosition = Vector2.zero;
+        // For a horizontally-stretched anchor (anchorMin.x=0, anchorMax.x=1),
+        // sizeDelta.x is an ADDITIVE offset on top of the anchor-derived
+        // width, not an absolute size — an unset (non-zero default) value
+        // here was silently widening the content past the viewport,
+        // producing the "left column flush against the screen edge, huge
+        // gap on the right" bug a rendered screenshot caught.
+        _gridContentRect.sizeDelta = Vector2.zero;
 
-        var layoutGroup = contentObject.AddComponent<VerticalLayoutGroup>();
-        layoutGroup.spacing = CardSpacing;
-        layoutGroup.childForceExpandWidth = true;
-        layoutGroup.childForceExpandHeight = false;
-        layoutGroup.childControlHeight = false;
-        layoutGroup.childControlWidth = true;
+        var gridLayout = contentObject.AddComponent<GridLayoutGroup>();
+        gridLayout.spacing = new Vector2(ColumnGap, RowGap);
+        gridLayout.childAlignment = TextAnchor.UpperLeft;
+        gridLayout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        gridLayout.constraintCount = 2;
+        gridLayout.cellSize = new Vector2(160f, 170f); // recomputed against real width in RefreshCards
 
         var sizeFitter = contentObject.AddComponent<ContentSizeFitter>();
         sizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-        scrollRect.content = _contentRect;
+        scrollRect.content = _gridContentRect;
         scrollRect.viewport = viewportRect;
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
@@ -188,10 +214,24 @@ public sealed class GalleryScreen : MonoBehaviour
 
     private void RefreshCards()
     {
-        for (int i = _contentRect.childCount - 1; i >= 0; i--)
+        for (int i = _gridContentRect.childCount - 1; i >= 0; i--)
         {
-            Destroy(_contentRect.GetChild(i).gameObject);
+            Destroy(_gridContentRect.GetChild(i).gameObject);
         }
+
+        // Two columns spanning the content width exactly, matching the
+        // mockup's edge-to-edge 2-column grid. Computed against the
+        // reference resolution directly, the same way every other Claude
+        // Design screen sizes its fixed elements — not measured from
+        // _gridContentRect.rect.width at runtime, which is unreliable
+        // here: RefreshCards() runs before the panel (and therefore this
+        // whole layout hierarchy) is even active, so uGUI hasn't resolved
+        // a real size for it yet (confirmed via a rendered screenshot
+        // showing one wildly oversized card before this fix).
+        float contentWidth = ResponsiveCanvasSetup.ReferenceWidth - (SidePadding * 2f);
+        float cellWidth = (contentWidth - ColumnGap) / 2f;
+        var gridLayout = _gridContentRect.GetComponent<GridLayoutGroup>();
+        gridLayout.cellSize = new Vector2(cellWidth, cellWidth * 1.35f);
 
         IReadOnlyList<GalleryEntryData> entries = _galleryManager.Entries;
         _emptyStateText.gameObject.SetActive(entries.Count == 0);
@@ -208,87 +248,102 @@ public sealed class GalleryScreen : MonoBehaviour
     private void BuildCard(GalleryEntryData entry)
     {
         var cardObject = new GameObject($"Card_Tier{entry.Tier}");
-        cardObject.transform.SetParent(_contentRect, false);
+        cardObject.transform.SetParent(_gridContentRect, false);
         cardObject.AddComponent<RectTransform>();
-        var layoutElement = cardObject.AddComponent<LayoutElement>();
-        layoutElement.preferredHeight = CardHeight;
-        layoutElement.flexibleWidth = 1f;
-        cardObject.AddComponent<Image>().color = UiPalette.Surface;
 
-        var thumbnail = new GameObject("Thumbnail");
-        thumbnail.transform.SetParent(cardObject.transform, false);
-        thumbnail.AddComponent<Image>().color = UiPalette.GetBlockColour(entry.Tier);
-        var thumbnailRect = thumbnail.GetComponent<RectTransform>();
-        thumbnailRect.anchorMin = new Vector2(0f, 0.5f);
-        thumbnailRect.anchorMax = new Vector2(0f, 0.5f);
-        thumbnailRect.pivot = new Vector2(0f, 0.5f);
-        thumbnailRect.anchoredPosition = new Vector2(16f, 0f);
-        thumbnailRect.sizeDelta = new Vector2(78f, 78f);
+        var cardImage = cardObject.AddComponent<Image>();
+        cardImage.sprite = RoundedRectSprite.Get(18);
+        cardImage.type = Image.Type.Sliced;
+        cardImage.color = UiPalette.Surface;
+        var outline = cardObject.AddComponent<Outline>();
+        outline.effectColor = UiPalette.CardBorder;
+        outline.effectDistance = new Vector2(1f, -1f);
 
-        string displayName = ResolveDisplayName(entry.Tier);
-        BuildLeftAlignedText(cardObject.transform, string.Format(Strings.GalleryCardTierFormat, entry.Tier, displayName), new Vector2(112f, -18f), CardTierFontSize, UiPalette.TextPrimary);
-        BuildLeftAlignedText(cardObject.transform, string.Format(Strings.GalleryCardCompletedFormat, entry.Date), new Vector2(112f, -50f), CardDetailFontSize, UiPalette.TextSecondary);
-        BuildLeftAlignedText(cardObject.transform, string.Format(Strings.GalleryCardScoreFormat, entry.Score.ToString("N0")), new Vector2(112f, -78f), CardDetailFontSize, UiPalette.GoldFill);
+        var layout = cardObject.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset((int)CardPadding, (int)CardPadding, (int)CardPadding, (int)CardPadding);
+        layout.spacing = 8f;
+        layout.childAlignment = TextAnchor.UpperLeft;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        layout.childControlWidth = true;
+        layout.childControlHeight = false;
+
+        var thumbnailObject = new GameObject("Thumbnail");
+        var thumbnailRect = thumbnailObject.AddComponent<RectTransform>();
+        thumbnailObject.transform.SetParent(cardObject.transform, false);
+        var thumbnailImage = thumbnailObject.AddComponent<Image>();
+        thumbnailImage.sprite = RoundedRectSprite.Get(14);
+        thumbnailImage.type = Image.Type.Sliced;
+        thumbnailImage.color = UiPalette.EmptyCellFill;
+        var thumbnailLayoutElement = thumbnailObject.AddComponent<LayoutElement>();
+        thumbnailLayoutElement.preferredHeight = ThumbnailHeight;
+
+        var iconObject = new GameObject("Icon");
+        var iconRect = iconObject.AddComponent<RectTransform>();
+        iconObject.transform.SetParent(thumbnailObject.transform, false);
+        iconRect.anchorMin = new Vector2(0.5f, 0.5f);
+        iconRect.anchorMax = new Vector2(0.5f, 0.5f);
+        iconRect.pivot = new Vector2(0.5f, 0.5f);
+        iconRect.anchoredPosition = Vector2.zero;
+        iconRect.sizeDelta = new Vector2(ThumbnailHeight - 20f, ThumbnailHeight - 20f);
+
+        CeramicDefinition definition = ResolveDefinition(entry.Tier);
+        var preview = iconObject.AddComponent<UiCeramicPreview>();
+        preview.Configure(iconRect);
+        // A gallery entry is always a completed ceramic — every crack
+        // repaired, unconditionally, regardless of the definition's own
+        // totalCracks.
+        preview.SetCeramic(definition, definition != null ? definition.totalCracks : 0);
+
+        BuildCardText(cardObject.transform, entry.Date, CardDetailFontSize, UiPalette.TextSecondary);
+        BuildCardText(cardObject.transform, string.Format(Strings.GalleryCardScoreFormat, entry.Score.ToString("N0")), CardTierFontSize, UiPalette.TextPrimary, bold: true);
     }
 
-    private string ResolveDisplayName(int tier)
-    {
-        int definitionTier = CeramicTierResolver.ResolveDefinitionTier(tier);
-        foreach (CeramicDefinition definition in _ceramicPool)
-        {
-            if (definition.tier == definitionTier)
-            {
-                return definition.displayName;
-            }
-        }
-
-        return "Ceramic";
-    }
-
-    private static void BuildLeftAlignedText(Transform parent, string content, Vector2 anchoredPosition, int fontSize, Color colour)
+    private static void BuildCardText(Transform parent, string content, int fontSize, Color colour, bool bold = false)
     {
         var textObject = new GameObject("Text");
         textObject.transform.SetParent(parent, false);
         var text = textObject.AddComponent<Text>();
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         text.fontSize = fontSize;
-        text.alignment = TextAnchor.UpperLeft;
+        text.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+        text.alignment = TextAnchor.MiddleLeft;
         text.color = colour;
         text.text = content;
         text.horizontalOverflow = HorizontalWrapMode.Overflow;
 
-        var rect = textObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(0f, 1f);
-        rect.pivot = new Vector2(0f, 1f);
-        rect.anchoredPosition = anchoredPosition;
-        rect.sizeDelta = new Vector2(420f, 30f);
+        var layoutElement = textObject.AddComponent<LayoutElement>();
+        layoutElement.preferredHeight = fontSize * 1.3f;
+        layoutElement.flexibleWidth = 1f;
     }
 
-    private static void BuildFillCenteredText(Transform parent, string content, int fontSize, Color colour)
+    private CeramicDefinition ResolveDefinition(int tier)
     {
-        var textObject = new GameObject("Label");
-        textObject.transform.SetParent(parent, false);
-        var text = textObject.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        text.fontSize = fontSize;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.color = colour;
-        text.text = content;
+        int definitionTier = CeramicTierResolver.ResolveDefinitionTier(tier);
+        foreach (CeramicDefinition definition in _ceramicPool)
+        {
+            if (definition.tier == definitionTier)
+            {
+                return definition;
+            }
+        }
 
-        var rect = textObject.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
+        return null;
     }
 
     public bool IsVisible => _panel != null && _panel.activeSelf;
 
     public void Show()
     {
-        RefreshCards();
+        // Activate first, refresh second — RefreshCards() builds uGUI
+        // layout elements (GridLayoutGroup/ContentSizeFitter) that only
+        // resolve correctly against an active hierarchy; doing this in
+        // the opposite order was the real cause of a card-layout bug
+        // caught via a rendered screenshot (see GalleryScreen's own
+        // RefreshCards doc comment for the specific fix that was needed
+        // alongside this reordering).
         _panel.SetActive(true);
+        RefreshCards();
         if (_inputHandler != null)
         {
             _inputHandler.InputEnabled = false;

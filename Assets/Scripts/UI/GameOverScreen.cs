@@ -15,14 +15,40 @@ using UnityEngine.UI;
 /// itself, since a successfully continued game isn't "another" game-over
 /// for cadence purposes. See InterstitialController's own docstring for
 /// the same reasoning from its side.
+///
+/// Layout is Claude Design UI rework Screen 4 (BUILD_PLAN.md), built the
+/// same way as HomeScreen: exact mockup pixel values against its own
+/// 390×844 reference frame via <see cref="ResponsiveCanvasSetup"/>.
 /// </summary>
 public sealed class GameOverScreen : MonoBehaviour
 {
-    private const int TitleFontSize = 32;
-    private const int FinalScoreFontSize = 48;
-    private const int BestScoreFontSize = 22;
-    private const int CeramicProgressFontSize = 18;
-    private const int ButtonLabelFontSize = 22;
+    private const float SidePadding = 28f;
+    private const float TopPadding = 72f;
+    private const float BottomPadding = 40f;
+
+    private const int TitleFontSize = 13;
+    private const int ScoreFontSize = 50;
+    private const int BadgeFontSize = 13;
+    private const int CeramicDetailFontSize = 12;
+    private const int ContinueLabelFontSize = 16;
+    private const int PlayAgainLabelFontSize = 15;
+    private const int AdTagFontSize = 10;
+    private const int DoubleCoinsFontSize = 13;
+
+    private const float ContinueHeight = 58f;
+    private const float ContinueRadius = 29f;
+    private const float PlayAgainHeight = 50f;
+    private const float PlayAgainRadius = 25f;
+    private const float DoubleCoinsRowHeight = 20f;
+    private const float ButtonGap = 12f;
+    private const float DoubleCoinsTopGap = 16f;
+
+    private const float CeramicIconWidth = 140f;
+    private const float CeramicIconHeight = 105f;
+
+    private static readonly Color BadgeBackground = new Color(232f / 255f, 192f / 255f, 96f / 255f, 0.14f);
+    private static readonly Color BadgeBorder = new Color(232f / 255f, 192f / 255f, 96f / 255f, 0.4f);
+    private static readonly Color AdTagBackground = new Color(122f / 255f, 122f / 255f, 154f / 255f, 0.2f);
 
     private PieceController _pieceController;
     private GameplaySaveTriggers _saveTriggers;
@@ -30,15 +56,18 @@ public sealed class GameOverScreen : MonoBehaviour
     private InterstitialController _interstitialController;
     private StreakPopup _streakPopup;
     private CeramicController _ceramicController;
+    private CeramicDefinition[] _ceramicPool;
     private Func<DateTime> _nowProvider;
 
     private GameObject _panel;
     private Text _finalScoreText;
-    private Text _bestScoreText;
-    private Text _ceramicProgressText;
-    private Text _milestoneText;
+    private GameObject _newBestBadge;
+    private Text _ceramicDetailText;
+    private UiCeramicPreview _ceramicPreview;
+    private RectTransform _progressFillRect;
     private GameObject _continueButton;
-    private GameObject _doubleCoinsButton;
+    private GameObject _doubleCoinsRow;
+    private Text _doubleCoinsText;
     private ToastMessage _toast;
     private bool _doubleCoinsUsedThisGameOver;
     private bool _resolved;
@@ -50,6 +79,7 @@ public sealed class GameOverScreen : MonoBehaviour
         InterstitialController interstitialController,
         StreakPopup streakPopup,
         CeramicController ceramicController,
+        CeramicDefinition[] ceramicPool,
         Func<DateTime> nowProvider = null)
     {
         _pieceController = pieceController;
@@ -58,6 +88,7 @@ public sealed class GameOverScreen : MonoBehaviour
         _interstitialController = interstitialController;
         _streakPopup = streakPopup;
         _ceramicController = ceramicController;
+        _ceramicPool = ceramicPool ?? Array.Empty<CeramicDefinition>();
         _nowProvider = nowProvider ?? (() => DateTime.UtcNow);
 
         BuildUi();
@@ -73,38 +104,309 @@ public sealed class GameOverScreen : MonoBehaviour
 
     private void BuildUi()
     {
-        var canvasObject = new GameObject("GameOverCanvas");
-        canvasObject.transform.SetParent(transform, false);
-        var canvas = canvasObject.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 10; // above GameplayHUD's default-order canvas
-        canvasObject.AddComponent<CanvasScaler>();
-        canvasObject.AddComponent<GraphicRaycaster>();
+        Canvas canvas = ResponsiveCanvasSetup.BuildCanvas(transform, "GameOverCanvas", sortingOrder: 10); // above GameplayHUD's default-order canvas
 
         _panel = new GameObject("Panel");
-        _panel.transform.SetParent(canvasObject.transform, false);
+        _panel.transform.SetParent(canvas.transform, false);
         var panelImage = _panel.AddComponent<Image>();
-        panelImage.color = new Color(UiPalette.Background.r, UiPalette.Background.g, UiPalette.Background.b, 0.92f);
+        panelImage.color = new Color(UiPalette.Background.r, UiPalette.Background.g, UiPalette.Background.b, 0.96f);
         var panelRect = _panel.GetComponent<RectTransform>();
         panelRect.anchorMin = Vector2.zero;
         panelRect.anchorMax = Vector2.one;
         panelRect.offsetMin = Vector2.zero;
         panelRect.offsetMax = Vector2.zero;
 
-        CreateText(_panel.transform, Strings.GameOverTitle, new Vector2(0.5f, 0.74f), TitleFontSize, UiPalette.TextPrimary);
-        _finalScoreText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.66f), FinalScoreFontSize, UiPalette.GoldFill);
-        _bestScoreText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.59f), BestScoreFontSize, UiPalette.TextSecondary);
-        _ceramicProgressText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.54f), CeramicProgressFontSize, UiPalette.TextSecondary);
-        _milestoneText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.49f), CeramicProgressFontSize, UiPalette.GoldFill);
+        RectTransform safeArea = ResponsiveCanvasSetup.BuildSafeArea(_panel.transform);
 
-        _continueButton = BuildButton(_panel.transform, Strings.GameOverContinueButton, new Vector2(0.5f, 0.40f), OnContinueClicked);
-        _doubleCoinsButton = BuildButton(_panel.transform, Strings.GameOverDoubleCoinsButton, new Vector2(0.5f, 0.32f), OnDoubleCoinsClicked);
-        BuildButton(_panel.transform, Strings.GameOverPlayAgainButton, new Vector2(0.5f, 0.22f), OnPlayAgainClicked);
+        BuildTopGroup(safeArea);
+        BuildCeramicPreview(safeArea);
+        BuildBottomGroup(safeArea);
     }
 
-    private static Text CreateText(Transform parent, string initialText, Vector2 anchor, int fontSize, Color colour)
+    private void BuildTopGroup(Transform parent)
     {
-        var textObject = new GameObject("Text");
+        float cursor = TopPadding;
+
+        CreateTopAnchoredText(parent, "Title", Strings.GameOverTitle, cursor, 18f, TitleFontSize, UiPalette.TextSecondary, letterSpacing: true);
+        cursor += 18f;
+
+        _finalScoreText = CreateTopAnchoredText(parent, "Score", string.Empty, cursor, 60f, ScoreFontSize, UiPalette.TextPrimary);
+        _finalScoreText.fontStyle = FontStyle.Bold;
+        cursor += 60f + 12f;
+
+        BuildNewBestBadge(parent, cursor);
+    }
+
+    private void BuildNewBestBadge(Transform parent, float topY)
+    {
+        _newBestBadge = new GameObject("NewBestBadge");
+        var rect = _newBestBadge.AddComponent<RectTransform>();
+        _newBestBadge.transform.SetParent(parent, false);
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.anchoredPosition = new Vector2(0f, -topY);
+        rect.sizeDelta = new Vector2(120f, 30f);
+
+        var image = _newBestBadge.AddComponent<Image>();
+        image.sprite = RoundedRectSprite.Get(16);
+        image.type = Image.Type.Sliced;
+        image.color = BadgeBackground;
+
+        var outline = _newBestBadge.AddComponent<Outline>();
+        outline.effectColor = BadgeBorder;
+        outline.effectDistance = new Vector2(1f, -1f);
+
+        var layout = _newBestBadge.AddComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.spacing = 6f;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        var diamondObject = new GameObject("Diamond");
+        var diamondRect = diamondObject.AddComponent<RectTransform>();
+        diamondObject.transform.SetParent(_newBestBadge.transform, false);
+        diamondRect.sizeDelta = new Vector2(9f, 9f);
+        diamondRect.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        var diamondImage = diamondObject.AddComponent<Image>();
+        diamondImage.color = UiPalette.GoldFill;
+        var diamondLayoutElement = diamondObject.AddComponent<LayoutElement>();
+        diamondLayoutElement.preferredWidth = 9f;
+        diamondLayoutElement.preferredHeight = 9f;
+
+        Text label = CreateAutoSizeText(_newBestBadge.transform, "New best!", BadgeFontSize, UiPalette.GoldFill);
+        label.fontStyle = FontStyle.Bold;
+    }
+
+    private void BuildCeramicPreview(Transform parent)
+    {
+        var containerObject = new GameObject("CeramicPreview");
+        var containerRect = containerObject.AddComponent<RectTransform>();
+        containerObject.transform.SetParent(parent, false);
+        containerRect.anchorMin = new Vector2(0.5f, 0.46f);
+        containerRect.anchorMax = new Vector2(0.5f, 0.46f);
+        containerRect.pivot = new Vector2(0.5f, 0.5f);
+        containerRect.anchoredPosition = Vector2.zero;
+        containerRect.sizeDelta = new Vector2(220f, 150f);
+
+        var iconObject = new GameObject("Icon");
+        var iconRect = iconObject.AddComponent<RectTransform>();
+        iconObject.transform.SetParent(containerRect, false);
+        iconRect.anchorMin = new Vector2(0.5f, 1f);
+        iconRect.anchorMax = new Vector2(0.5f, 1f);
+        iconRect.pivot = new Vector2(0.5f, 1f);
+        iconRect.anchoredPosition = Vector2.zero;
+        iconRect.sizeDelta = new Vector2(CeramicIconWidth, CeramicIconHeight);
+        _ceramicPreview = iconObject.AddComponent<UiCeramicPreview>();
+        _ceramicPreview.Configure(iconRect);
+
+        var trackObject = new GameObject("ProgressTrack");
+        var trackRect = trackObject.AddComponent<RectTransform>();
+        trackObject.transform.SetParent(containerRect, false);
+        trackRect.anchorMin = new Vector2(0.5f, 1f);
+        trackRect.anchorMax = new Vector2(0.5f, 1f);
+        trackRect.pivot = new Vector2(0.5f, 1f);
+        trackRect.anchoredPosition = new Vector2(0f, -(CeramicIconHeight + 8f));
+        trackRect.sizeDelta = new Vector2(170f, 6f);
+        var trackImage = trackObject.AddComponent<Image>();
+        trackImage.sprite = RoundedRectSprite.Get(3);
+        trackImage.type = Image.Type.Sliced;
+        trackImage.color = UiPalette.EmptyCellFill;
+
+        var fillObject = new GameObject("ProgressFill");
+        _progressFillRect = fillObject.AddComponent<RectTransform>();
+        fillObject.transform.SetParent(trackRect, false);
+        _progressFillRect.anchorMin = new Vector2(0f, 0f);
+        _progressFillRect.anchorMax = new Vector2(0f, 1f);
+        _progressFillRect.pivot = new Vector2(0f, 0.5f);
+        _progressFillRect.anchoredPosition = Vector2.zero;
+        _progressFillRect.sizeDelta = new Vector2(0f, 0f);
+        var fillImage = fillObject.AddComponent<Image>();
+        fillImage.sprite = RoundedRectSprite.Get(3);
+        fillImage.type = Image.Type.Sliced;
+        fillImage.color = UiPalette.GoldFill;
+
+        _ceramicDetailText = CreateTopAnchoredText(containerRect, "CeramicDetail", string.Empty, CeramicIconHeight + 8f + 6f + 18f, 18f, CeramicDetailFontSize, UiPalette.TextSecondary);
+    }
+
+    private void BuildBottomGroup(Transform parent)
+    {
+        float cursor = BottomPadding;
+
+        BuildDoubleCoinsRow(parent, cursor);
+        cursor += DoubleCoinsRowHeight + DoubleCoinsTopGap;
+
+        BuildPlayAgainButton(parent, cursor);
+        cursor += PlayAgainHeight + ButtonGap;
+
+        BuildContinueButton(parent, cursor);
+    }
+
+    private void BuildContinueButton(Transform parent, float bottomY)
+    {
+        _continueButton = CreateBottomAnchoredStretchObject(parent, "ContinueButton", bottomY, ContinueHeight);
+        Image buttonImage = _continueButton.AddComponent<Image>();
+        buttonImage.sprite = RoundedRectSprite.Get((int)ContinueRadius);
+        buttonImage.type = Image.Type.Sliced;
+        buttonImage.color = UiPalette.Surface;
+        AddBorder(_continueButton.GetComponent<RectTransform>(), UiPalette.GoldFill);
+        _continueButton.AddComponent<Button>().onClick.AddListener(OnContinueClicked);
+
+        var contentObject = new GameObject("Content");
+        var contentRect = contentObject.AddComponent<RectTransform>();
+        contentObject.transform.SetParent(_continueButton.transform, false);
+        contentRect.anchorMin = Vector2.zero;
+        contentRect.anchorMax = Vector2.one;
+        contentRect.offsetMin = Vector2.zero;
+        contentRect.offsetMax = Vector2.zero;
+        var layout = contentObject.AddComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.spacing = 10f;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        var triangleObject = new GameObject("Triangle");
+        var triangleRect = triangleObject.AddComponent<RectTransform>();
+        triangleObject.transform.SetParent(contentObject.transform, false);
+        triangleRect.sizeDelta = new Vector2(12f, 16f);
+        var triangleImage = triangleObject.AddComponent<Image>();
+        triangleImage.sprite = TriangleSprite.Get();
+        triangleImage.color = UiPalette.GoldFill;
+        var triangleLayoutElement = triangleObject.AddComponent<LayoutElement>();
+        triangleLayoutElement.preferredWidth = 12f;
+        triangleLayoutElement.preferredHeight = 16f;
+
+        Text label = CreateAutoSizeText(contentObject.transform, Strings.GameOverContinueButton, ContinueLabelFontSize, UiPalette.GoldFill);
+        label.fontStyle = FontStyle.Bold;
+
+        var adTagObject = new GameObject("AdTag");
+        var adTagRect = adTagObject.AddComponent<RectTransform>();
+        adTagObject.transform.SetParent(_continueButton.transform, false);
+        adTagRect.anchorMin = new Vector2(1f, 0.5f);
+        adTagRect.anchorMax = new Vector2(1f, 0.5f);
+        adTagRect.pivot = new Vector2(1f, 0.5f);
+        adTagRect.anchoredPosition = new Vector2(-14f, 0f);
+        adTagRect.sizeDelta = new Vector2(32f, 20f);
+        var adTagImage = adTagObject.AddComponent<Image>();
+        adTagImage.sprite = RoundedRectSprite.Get(8);
+        adTagImage.type = Image.Type.Sliced;
+        adTagImage.color = AdTagBackground;
+
+        Text adTagLabel = CreateAutoSizeText(adTagObject.transform, "AD", AdTagFontSize, UiPalette.TextSecondary);
+        adTagLabel.fontStyle = FontStyle.Bold;
+        var adTagLabelRect = adTagLabel.GetComponent<RectTransform>();
+        adTagLabelRect.anchorMin = Vector2.zero;
+        adTagLabelRect.anchorMax = Vector2.one;
+        adTagLabelRect.offsetMin = Vector2.zero;
+        adTagLabelRect.offsetMax = Vector2.zero;
+    }
+
+    private void BuildPlayAgainButton(Transform parent, float bottomY)
+    {
+        GameObject buttonObject = CreateBottomAnchoredStretchObject(parent, "PlayAgainButton", bottomY, PlayAgainHeight);
+        Image buttonImage = buttonObject.AddComponent<Image>();
+        buttonImage.sprite = RoundedRectSprite.Get((int)PlayAgainRadius);
+        buttonImage.type = Image.Type.Sliced;
+        buttonImage.color = Color.clear;
+        AddBorder(buttonObject.GetComponent<RectTransform>(), UiPalette.CardBorder);
+        buttonObject.AddComponent<Button>().onClick.AddListener(OnPlayAgainClicked);
+
+        Text label = CreateAutoSizeText(buttonObject.transform, Strings.GameOverPlayAgainButton, PlayAgainLabelFontSize, UiPalette.TextPrimary);
+        label.fontStyle = FontStyle.Normal;
+        var labelRect = label.GetComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+        labelRect.sizeDelta = Vector2.zero;
+    }
+
+    private void BuildDoubleCoinsRow(Transform parent, float bottomY)
+    {
+        _doubleCoinsRow = new GameObject("DoubleCoinsRow");
+        var rect = _doubleCoinsRow.AddComponent<RectTransform>();
+        _doubleCoinsRow.transform.SetParent(parent, false);
+        rect.anchorMin = new Vector2(0.5f, 0f);
+        rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.anchoredPosition = new Vector2(0f, bottomY);
+        rect.sizeDelta = new Vector2(180f, DoubleCoinsRowHeight);
+
+        var button = _doubleCoinsRow.AddComponent<Button>();
+        button.transition = Selectable.Transition.None;
+        button.onClick.AddListener(OnDoubleCoinsClicked);
+
+        var layout = _doubleCoinsRow.AddComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.spacing = 6f;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+
+        var dotObject = new GameObject("Dot");
+        var dotRect = dotObject.AddComponent<RectTransform>();
+        dotObject.transform.SetParent(_doubleCoinsRow.transform, false);
+        dotRect.sizeDelta = new Vector2(14f, 14f);
+        var dotImage = dotObject.AddComponent<Image>();
+        dotImage.sprite = RoundedRectSprite.Get(7);
+        dotImage.color = UiPalette.GoldFill;
+        var dotLayoutElement = dotObject.AddComponent<LayoutElement>();
+        dotLayoutElement.preferredWidth = 14f;
+        dotLayoutElement.preferredHeight = 14f;
+
+        _doubleCoinsText = CreateAutoSizeText(_doubleCoinsRow.transform, Strings.GameOverDoubleCoinsButton, DoubleCoinsFontSize, UiPalette.GoldFill);
+        _doubleCoinsText.fontStyle = FontStyle.Bold;
+    }
+
+    private static GameObject CreateBottomAnchoredStretchObject(Transform parent, string name, float bottomY, float height)
+    {
+        var go = new GameObject(name);
+        var rect = go.AddComponent<RectTransform>();
+        go.transform.SetParent(parent, false);
+        rect.anchorMin = new Vector2(0f, 0f);
+        rect.anchorMax = new Vector2(1f, 0f);
+        rect.pivot = new Vector2(0.5f, 0f);
+        rect.offsetMin = new Vector2(SidePadding, bottomY);
+        rect.offsetMax = new Vector2(-SidePadding, bottomY + height);
+        return go;
+    }
+
+    private static void AddBorder(RectTransform target, Color colour)
+    {
+        var outline = target.gameObject.AddComponent<Outline>();
+        outline.effectColor = colour;
+        outline.effectDistance = new Vector2(1.5f, -1.5f);
+        outline.useGraphicAlpha = true;
+    }
+
+    private static Text CreateTopAnchoredText(Transform parent, string name, string initialText, float topY, float height, int fontSize, Color colour, bool letterSpacing = false)
+    {
+        var textObject = new GameObject(name);
+        textObject.transform.SetParent(parent, false);
+
+        var text = textObject.AddComponent<Text>();
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.fontSize = fontSize;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = colour;
+        // Legacy uGUI Text has no real letter-spacing property — a thin
+        // space (U+2009) between characters approximates the mockup's
+        // subtle 2px tracking without the huge gaps a plain space (U+0020)
+        // produces (confirmed too wide via a rendered screenshot).
+        text.text = letterSpacing ? string.Join(" ", initialText.ToCharArray()) : initialText;
+
+        var rect = textObject.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(1f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.offsetMin = new Vector2(SidePadding, -(topY + height));
+        rect.offsetMax = new Vector2(-SidePadding, -topY);
+
+        return text;
+    }
+
+    private static Text CreateAutoSizeText(Transform parent, string initialText, int fontSize, Color colour)
+    {
+        var textObject = new GameObject("Label");
         textObject.transform.SetParent(parent, false);
 
         var text = textObject.AddComponent<Text>();
@@ -113,41 +415,16 @@ public sealed class GameOverScreen : MonoBehaviour
         text.alignment = TextAnchor.MiddleCenter;
         text.color = colour;
         text.text = initialText;
+        text.horizontalOverflow = HorizontalWrapMode.Overflow;
+
+        var layoutElement = textObject.AddComponent<LayoutElement>();
+        layoutElement.preferredWidth = Mathf.Max(20f, initialText.Length * fontSize * 0.62f);
+        layoutElement.preferredHeight = fontSize * 1.3f;
 
         var rect = textObject.GetComponent<RectTransform>();
-        rect.anchorMin = anchor;
-        rect.anchorMax = anchor;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(600f, 60f);
+        rect.sizeDelta = new Vector2(layoutElement.preferredWidth, layoutElement.preferredHeight);
 
         return text;
-    }
-
-    private GameObject BuildButton(Transform parent, string label, Vector2 anchor, UnityEngine.Events.UnityAction onClick)
-    {
-        var buttonObject = new GameObject($"{label}Button");
-        buttonObject.transform.SetParent(parent, false);
-        var image = buttonObject.AddComponent<Image>();
-        image.color = UiPalette.Surface;
-        var button = buttonObject.AddComponent<Button>();
-        button.onClick.AddListener(onClick);
-
-        var rect = buttonObject.GetComponent<RectTransform>();
-        rect.anchorMin = anchor;
-        rect.anchorMax = anchor;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(320f, 64f);
-
-        Text buttonLabel = CreateText(buttonObject.transform, label, Vector2.zero, ButtonLabelFontSize, UiPalette.TextPrimary);
-        var labelRect = buttonLabel.GetComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = Vector2.zero;
-        labelRect.offsetMax = Vector2.zero;
-
-        return buttonObject;
     }
 
     private void Show()
@@ -155,25 +432,25 @@ public sealed class GameOverScreen : MonoBehaviour
         _resolved = false;
         _doubleCoinsUsedThisGameOver = false;
 
-        _finalScoreText.text = _pieceController.Score.CurrentScore.ToString("N0");
-        _bestScoreText.text = string.Format(Strings.GameOverBestScoreFormat, _pieceController.Score.BestScore.ToString("N0"));
+        int currentScore = _pieceController.Score.CurrentScore;
+        int bestScore = _pieceController.Score.BestScore;
+        _finalScoreText.text = currentScore.ToString("N0");
+        _newBestBadge.SetActive(currentScore >= bestScore && currentScore > 0);
 
         if (_ceramicController != null)
         {
             CeramicProgressData progress = _ceramicController.Ceramic.Progress;
-            _ceramicProgressText.text = string.Format(Strings.GameOverCeramicProgressFormat, progress.CracksRepaired, progress.TotalCracks);
-        }
+            CeramicDefinition definition = FindCeramicDefinition(progress.Tier);
+            string displayName = definition != null ? definition.displayName : "Ceramic";
+            _ceramicDetailText.text = $"{displayName} · {progress.CracksRepaired}/{progress.TotalCracks}";
+            _ceramicPreview.SetCeramic(definition, progress.CracksRepaired);
 
-        _milestoneText.gameObject.SetActive(false);
-        if (_saveTriggers != null && _saveTriggers.LastMilestoneResults.Count > 0)
-        {
-            MilestoneManager.MilestoneResult milestone = _saveTriggers.LastMilestoneResults[_saveTriggers.LastMilestoneResults.Count - 1];
-            _milestoneText.text = string.Format(Strings.GameOverMilestoneReachedFormat, milestone.MilestoneScore.ToString("N0"), milestone.CoinsAwarded);
-            _milestoneText.gameObject.SetActive(true);
+            float fraction = progress.TotalCracks > 0 ? (float)progress.CracksRepaired / progress.TotalCracks : 0f;
+            _progressFillRect.anchorMax = new Vector2(Mathf.Clamp01(fraction), 1f);
         }
 
         _continueButton.SetActive(_pieceController.CanContinue);
-        _doubleCoinsButton.SetActive(true);
+        _doubleCoinsRow.SetActive(true);
 
         _panel.SetActive(true);
 
@@ -181,6 +458,31 @@ public sealed class GameOverScreen : MonoBehaviour
         {
             _streakPopup?.Show(_saveTriggers.LastStreakResult.Value);
         }
+
+        // The mockup has no dedicated milestone element (its Game Over
+        // screen only shows score/badge/ceramic/buttons) — routed through
+        // the existing toast system instead of a static banner, rather
+        // than silently dropping this functionality to match the mockup
+        // literally.
+        if (_saveTriggers != null && _saveTriggers.LastMilestoneResults.Count > 0)
+        {
+            MilestoneManager.MilestoneResult milestone = _saveTriggers.LastMilestoneResults[_saveTriggers.LastMilestoneResults.Count - 1];
+            _toast.Show(string.Format(Strings.GameOverMilestoneReachedFormat, milestone.MilestoneScore.ToString("N0"), milestone.CoinsAwarded));
+        }
+    }
+
+    private CeramicDefinition FindCeramicDefinition(int tier)
+    {
+        int definitionTier = CeramicTierResolver.ResolveDefinitionTier(tier);
+        foreach (CeramicDefinition definition in _ceramicPool)
+        {
+            if (definition.tier == definitionTier)
+            {
+                return definition;
+            }
+        }
+
+        return null;
     }
 
     private void OnContinueClicked()
@@ -224,7 +526,7 @@ public sealed class GameOverScreen : MonoBehaviour
             if (succeeded)
             {
                 _doubleCoinsUsedThisGameOver = true;
-                _doubleCoinsButton.SetActive(false);
+                _doubleCoinsRow.SetActive(false);
             }
             else
             {

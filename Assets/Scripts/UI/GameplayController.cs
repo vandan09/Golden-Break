@@ -229,7 +229,7 @@ public sealed class GameplayController : MonoBehaviour
         var gameOverObject = new GameObject("GameOverScreen");
         gameOverObject.transform.SetParent(regularRoot.transform, false);
         var gameOverScreen = gameOverObject.AddComponent<GameOverScreen>();
-        gameOverScreen.Configure(pieceController, saveTriggers, rewardedAdController, interstitialController, streakPopup, ceramicController);
+        gameOverScreen.Configure(pieceController, saveTriggers, rewardedAdController, interstitialController, streakPopup, ceramicController, ceramicPool);
 
         // ---- Daily Challenge (fully separate session) -------------------
         var dailyRoot = new GameObject("DailyRoot");
@@ -300,6 +300,7 @@ public sealed class GameplayController : MonoBehaviour
         dailyRoot.SetActive(false);
 
         Debug.Log($"[DIAG] Awake complete: GridManager count={FindObjectsOfType<GridManager>().Length} PieceController count={FindObjectsOfType<PieceController>().Length} regularGrid={grid.GetInstanceID()} dailyGrid={dailyGrid.GetInstanceID()}");
+        Debug.Log($"[DIAG] Graphics: device={SystemInfo.graphicsDeviceType} name={SystemInfo.graphicsDeviceName} version={SystemInfo.graphicsDeviceVersion} shaderLevel={SystemInfo.graphicsShaderLevel} batching={SystemInfo.supportsInstancing}");
 
         // ---- Home / overlays ---------------------------------------------
         var settingsScreenObject = new GameObject("SettingsScreen");

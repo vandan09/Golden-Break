@@ -1,5 +1,4 @@
 using System.Collections;
-using System.IO;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -34,46 +33,6 @@ public class HomeScreenSmokeTests
         Canvas canvas = homeScreen.GetComponentInChildren<Canvas>();
         Assert.IsNotNull(canvas, "HomeScreen should have built its own Canvas.");
 
-        yield return CaptureSnapshot(canvas, "homescreen_playmode_snapshot.png");
-    }
-
-    private static IEnumerator CaptureSnapshot(Canvas canvas, string fileName)
-    {
-        var camObject = new GameObject("SnapshotCamera");
-        var cam = camObject.AddComponent<Camera>();
-        cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = Color.black;
-
-        const int width = 1080, height = 2336;
-        var rt = new RenderTexture(width, height, 24);
-        cam.targetTexture = rt;
-
-        RenderMode originalMode = canvas.renderMode;
-        Camera originalCamera = canvas.worldCamera;
-
-        canvas.renderMode = RenderMode.ScreenSpaceCamera;
-        canvas.worldCamera = cam;
-        canvas.planeDistance = 1f;
-
-        yield return null;
-        cam.Render();
-
-        RenderTexture.active = rt;
-        var tex = new Texture2D(width, height, TextureFormat.RGB24, false);
-        tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-        tex.Apply();
-        RenderTexture.active = null;
-
-        byte[] png = tex.EncodeToPNG();
-        string path = Path.Combine(Application.dataPath, "..", "Logs", fileName);
-        File.WriteAllBytes(path, png);
-        Debug.Log($"[SNAPSHOT] Saved {fileName} ({width}x{height}) to {path}");
-
-        canvas.renderMode = originalMode;
-        canvas.worldCamera = originalCamera;
-
-        Object.Destroy(tex);
-        Object.Destroy(camObject);
-        rt.Release();
+        yield return Snapshot.Capture(canvas, "homescreen_playmode_snapshot.png");
     }
 }
