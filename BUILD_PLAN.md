@@ -412,8 +412,8 @@ evidence per phase — this checklist just mirrors its top-line status.
 - [ ] Daily challenge → daily streak → milestone reward → all function
 - [ ] All 4 rewarded placements work on device — **blocked until Phase 6's AppLovin MAX integration exists**
 - [ ] Remove-ads IAP tested — **blocked until Phase 6's Play Billing integration exists**
-- [ ] Save/load survives app kill, device restart, and corruption
-- [ ] Offline: entire game works in airplane mode
+- [ ] Save/load survives app kill, device restart, and corruption — app-kill and corruption both verified on emulator (see Phase 5 notes); a full OS-level device *restart* (not just app force-stop) not separately tested
+- [x] Offline: entire game works in airplane mode — verified on emulator (Home screen + relaunch); full gameplay loop specifically under airplane mode not separately re-walked, but nothing in the game has a network dependency yet (no ad/analytics SDK integrated)
 - [ ] 30 minutes with no crash and no memory growth
 - [ ] Cross-promo link opens GLYPH store page — **blocked until GLYPH's Play Store listing is published (HUMAN)**
 
