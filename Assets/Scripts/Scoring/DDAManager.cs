@@ -90,4 +90,24 @@ public static class DDAManager
         PieceSizeTier tier = GetSizeTier(piece.pieceId);
         return GetWeightMultiplier(tier, state);
     }
+
+    // Shared by GameplayController's live spawn-weighting and
+    // HomeScreen's analytics custom-dimension reporting — both need "the
+    // player's current form" from the same rolling history, so this is
+    // the one canonical place that averages it.
+    public static float ComputeLast10Average(List<int> last10Scores)
+    {
+        if (last10Scores == null || last10Scores.Count == 0)
+        {
+            return 0f;
+        }
+
+        float sum = 0f;
+        foreach (int score in last10Scores)
+        {
+            sum += score;
+        }
+
+        return sum / last10Scores.Count;
+    }
 }

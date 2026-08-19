@@ -74,6 +74,7 @@ public sealed class HomeScreen : MonoBehaviour
         data.TotalSessions++;
 
         AnalyticsManager.Instance?.InitializeSdk();
+        AnalyticsManager.Instance?.SetCustomDimensions(ResolveCountryCode(), ResolveDdaStateLabel(data), data.TotalGames);
         AnalyticsManager.Instance?.LogEvent("session_start", new System.Collections.Generic.Dictionary<string, object>
         {
             { "session_number", data.TotalSessions },
@@ -92,6 +93,28 @@ public sealed class HomeScreen : MonoBehaviour
         ReviewManager.RequestReviewIfEligible(data);
 
         _saveManager.Save();
+    }
+
+    // CLAUDE.md §6: "custom dimensions: country, DDA state, total games" —
+    // set once per session alongside SDK init, not per-event, matching how
+    // GameAnalytics' real custom dimensions work (set-and-forget until
+    // changed, not attached to individual events).
+    private static string ResolveCountryCode()
+    {
+        try
+        {
+            return System.Globalization.RegionInfo.CurrentRegion.TwoLetterISORegionName;
+        }
+        catch (Exception)
+        {
+            return "unknown";
+        }
+    }
+
+    private static string ResolveDdaStateLabel(SaveData data)
+    {
+        float last10Average = DDAManager.ComputeLast10Average(data.DdaLast10Scores);
+        return DDAManager.Classify(last10Average, data.DdaAvgScore).ToString();
     }
 
     private int ComputeDaysSinceInstall(SaveData data)
@@ -235,6 +258,10 @@ public sealed class HomeScreen : MonoBehaviour
         {
             _inputHandler.InputEnabled = false;
         }
+
+        // CLAUDE.md §5.1: "Banner: Home screen and gallery screen only.
+        // Never during gameplay."
+        AdManager.Instance?.ShowBanner();
     }
 
     public void Hide()
@@ -244,5 +271,7 @@ public sealed class HomeScreen : MonoBehaviour
         {
             _inputHandler.InputEnabled = true;
         }
+
+        AdManager.Instance?.HideBanner();
     }
 }

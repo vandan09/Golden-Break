@@ -293,16 +293,23 @@ public sealed class GalleryScreen : MonoBehaviour
         {
             _inputHandler.InputEnabled = false;
         }
+
+        // CLAUDE.md §5.1: "Banner: Home screen and gallery screen only."
+        AdManager.Instance?.ShowBanner();
     }
 
     public void Hide()
     {
         _panel.SetActive(false);
+        AdManager.Instance?.HideBanner();
 
         // Gallery is only ever opened from Home, so closing it returns
         // there (Home's own Show() keeps InputEnabled false, since
         // gameplay isn't the destination) — only falls back to directly
-        // re-enabling input if somehow no HomeScreen was wired.
+        // re-enabling input if somehow no HomeScreen was wired. Home's
+        // own Show() re-shows the banner immediately after the HideBanner
+        // call above, which is fine — ShowBanner/HideBanner are both
+        // idempotent no-ops when already in the requested state.
         if (_homeScreen != null)
         {
             _homeScreen.Show();

@@ -390,19 +390,7 @@ public sealed class GameplayController : MonoBehaviour
     // it.
     private static float ComputeDdaWeightMultiplier(PieceDefinition piece, SaveManager saveManager)
     {
-        System.Collections.Generic.List<int> last10 = saveManager.Current.DdaLast10Scores;
-        float last10Average = 0f;
-        if (last10 != null && last10.Count > 0)
-        {
-            float sum = 0f;
-            foreach (int score in last10)
-            {
-                sum += score;
-            }
-
-            last10Average = sum / last10.Count;
-        }
-
+        float last10Average = DDAManager.ComputeLast10Average(saveManager.Current.DdaLast10Scores);
         return DDAManager.GetWeightMultiplier(piece, last10Average, saveManager.Current.DdaAvgScore);
     }
 

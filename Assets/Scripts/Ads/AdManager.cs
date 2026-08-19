@@ -21,8 +21,17 @@ public sealed class AdManager : MonoBehaviour
     public static event Action<AdPlacement> OnRewardedWatched;
     public static event Action<AdPlacement, string> OnRewardedFailed;
     public static event Action OnInterstitialShown;
+    public static event Action OnBannerShown;
+    public static event Action OnBannerHidden;
 
     private bool _sdkInitialized;
+    private bool _bannerVisible;
+
+    // CLAUDE.md §5.1: "Banner: Home screen and gallery screen only. Never
+    // during gameplay." Exposed so a caller could assert the banner isn't
+    // left showing behind an overlay it forgot to hide, though nothing
+    // reads it yet.
+    public bool IsBannerVisible => _bannerVisible;
 
     // CLAUDE.md §5.4/§9.3: "GDPR CMP via MAX" — AppLovin MAX's own Consent
     // Management Platform (MaxCmpService) handles the actual dialog once
@@ -98,6 +107,48 @@ public sealed class AdManager : MonoBehaviour
             OnRewardedFailed?.Invoke(placement, e.Message);
             onFailure?.Invoke(e.Message);
         }
+    }
+
+    // CLAUDE.md §5.1: Home/Gallery show a banner; every other screen
+    // (gameplay, Settings, Daily Challenge, Game Over) simply never calls
+    // this. _bannerVisible guards against double-firing OnBannerShown
+    // when Gallery.Show() -> Home.Show() both call this in the same
+    // navigation step (Gallery.Hide() re-shows Home).
+    public void ShowBanner()
+    {
+        if (_bannerVisible)
+        {
+            return;
+        }
+
+        _bannerVisible = true;
+
+        if (!_sdkInitialized)
+        {
+            Debug.Log("AdManager: banner requested — SDK not yet integrated, no-op until AppLovin MAX account and ad unit IDs exist.");
+            return;
+        }
+
+        // TODO(ads-setup): real MaxSdk.ShowBanner call goes here.
+        OnBannerShown?.Invoke();
+    }
+
+    public void HideBanner()
+    {
+        if (!_bannerVisible)
+        {
+            return;
+        }
+
+        _bannerVisible = false;
+
+        if (!_sdkInitialized)
+        {
+            return;
+        }
+
+        // TODO(ads-setup): real MaxSdk.HideBanner call goes here.
+        OnBannerHidden?.Invoke();
     }
 
     public void ShowInterstitial(Action onComplete)

@@ -74,4 +74,34 @@ public class AdManagerTests
 
         Assert.DoesNotThrow(() => _adManager.InitializeSdk());
     }
+
+    [Test]
+    public void ShowBanner_SetsIsBannerVisibleTrue()
+    {
+        _adManager.ShowBanner();
+
+        Assert.IsTrue(_adManager.IsBannerVisible);
+    }
+
+    [Test]
+    public void HideBanner_AfterShow_SetsIsBannerVisibleFalse()
+    {
+        _adManager.ShowBanner();
+        _adManager.HideBanner();
+
+        Assert.IsFalse(_adManager.IsBannerVisible);
+    }
+
+    [Test]
+    public void HideBanner_WithoutEverShowing_DoesNotThrow()
+    {
+        Assert.DoesNotThrow(() => _adManager.HideBanner());
+        Assert.IsFalse(_adManager.IsBannerVisible);
+    }
+
+    [Test]
+    public void ShowBanner_SdkNotInitialized_DoesNotThrow()
+    {
+        Assert.DoesNotThrow(() => _adManager.ShowBanner());
+    }
 }

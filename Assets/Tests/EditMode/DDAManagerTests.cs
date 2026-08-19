@@ -84,4 +84,24 @@ public class DDAManagerTests
 
         Assert.AreEqual(viaTierState, viaPiece);
     }
+
+    [Test]
+    public void ComputeLast10Average_NullList_ReturnsZero()
+    {
+        Assert.AreEqual(0f, DDAManager.ComputeLast10Average(null));
+    }
+
+    [Test]
+    public void ComputeLast10Average_EmptyList_ReturnsZero()
+    {
+        Assert.AreEqual(0f, DDAManager.ComputeLast10Average(new System.Collections.Generic.List<int>()));
+    }
+
+    [Test]
+    public void ComputeLast10Average_WithScores_ReturnsArithmeticMean()
+    {
+        var scores = new System.Collections.Generic.List<int> { 10, 20, 30 };
+
+        Assert.AreEqual(20f, DDAManager.ComputeLast10Average(scores), 0.0001f);
+    }
 }

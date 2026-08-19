@@ -35,6 +35,12 @@ public class AnalyticsManagerTests
     }
 
     [Test]
+    public void SetCustomDimensions_SdkNotInitialized_DoesNotThrow()
+    {
+        Assert.DoesNotThrow(() => _analyticsManager.SetCustomDimensions("US", "Normal", 12));
+    }
+
+    [Test]
     public void FormatParameters_NullOrEmpty_ReturnsEmptyString()
     {
         Assert.AreEqual(string.Empty, AnalyticsManager.FormatParameters(null));
