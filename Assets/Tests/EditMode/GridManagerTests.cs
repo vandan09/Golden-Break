@@ -108,6 +108,28 @@ public class GridManagerTests
         Assert.AreEqual(UiPalette.GetBlockColour(0), cellRenderer.color);
     }
 
+    // Regression guard for colourId 0 specifically (the first/coral
+    // block colour) — 0 is falsy-looking in other languages and a classic
+    // off-by-one/truthiness trap, even though C# has no implicit int-to-
+    // bool conversion to actually cause one here. Asserts both the colour
+    // AND the sprite explicitly, and that the sprite isn't silently the
+    // flat empty-cell placeholder.
+    [Test]
+    public void RefreshCell_ColourIdZero_RendersItsOwnColourAndPatternedSpriteNotTheEmptyPlaceholder()
+    {
+        var piece = ScriptableObject.CreateInstance<PieceDefinition>();
+        piece.pieceId = "single";
+        piece.cells = new[] { new Vector2Int(0, 0) };
+
+        _gridManager.Board.Place(piece, 2, 2, colourId: 0);
+        _gridManager.RefreshCell(2, 2);
+
+        SpriteRenderer cellRenderer = _gridManager.transform.Find("Cell_2_2").GetComponent<SpriteRenderer>();
+        Assert.AreEqual(UiPalette.GetBlockColour(0), cellRenderer.color);
+        Assert.AreEqual(UiPalette.GetBlockSprite(0), cellRenderer.sprite);
+        Assert.AreNotEqual(PlaceholderSprite.GetSolid(Color.white), cellRenderer.sprite, "colourId 0 must not render as the flat placeholder used for empty cells");
+    }
+
     [Test]
     public void RefreshCell_EmptyCell_RendersEmptyCellFillColour()
     {

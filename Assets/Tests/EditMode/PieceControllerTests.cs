@@ -94,6 +94,30 @@ public class PieceControllerTests
         Assert.IsNull(_controller.Hand[0]);
     }
 
+    // End-to-end regression guard through the real BeginDrag/UpdateDrag/
+    // EndDrag pipeline (not just BoardState or GridManager in isolation)
+    // for slot 0 specifically — slot 0 always deals colourId 0 (coral),
+    // per DealHandCore's `i % BlockColours.Length` assignment, so this is
+    // the one slot/colour combination that's both the most common (every
+    // single hand has one) and the easiest to accidentally special-case
+    // incorrectly around (0 is a classic off-by-one/truthiness trap in
+    // other languages, even though C# has no implicit int-to-bool
+    // conversion to actually cause one here).
+    [Test]
+    public void EndDrag_Slot0_RendersCoralColourAndPatternOnTheActualGridCell()
+    {
+        Vector3 targetWorld = _grid.transform.TransformPoint(GridManager.CellToLocalPosition(5, 5));
+
+        _controller.BeginDrag(0, _tray.Slots[0].transform.position);
+        _controller.UpdateDrag(targetWorld);
+        _controller.EndDrag();
+
+        SpriteRenderer cellRenderer = _grid.transform.Find("Cell_5_5").GetComponent<SpriteRenderer>();
+        Assert.AreEqual(UiPalette.GetBlockColour(0), cellRenderer.color);
+        Assert.AreEqual(UiPalette.GetBlockSprite(0), cellRenderer.sprite);
+        Assert.AreNotEqual(PlaceholderSprite.GetSolid(Color.white), cellRenderer.sprite);
+    }
+
     [Test]
     public void EndDrag_OverAlreadyFilledCell_BouncesBackToTrayWithoutMutatingBoard()
     {
