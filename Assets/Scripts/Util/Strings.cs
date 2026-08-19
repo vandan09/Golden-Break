@@ -16,6 +16,9 @@ public static class Strings
     public const string HomeStreakStartPrompt = "Start your streak today";
     public const string HomeStreakActiveFormat = "{0} day streak";
     public const string CeramicProgressFormat = "Ceramic progress: {0}/{1} cracks repaired";
+    public const string HomeBestScoreFormat = "Best score · {0}";
+    public const string HomeDailyStreakBadgeFormat = "{0}";
+    public const string HomeCrackFractionFormat = "{0}/{1} cracks";
     public const string PushNotificationStreakReminderBody = "Keep your streak alive! Play today before it resets.";
 
     // Game-over screen

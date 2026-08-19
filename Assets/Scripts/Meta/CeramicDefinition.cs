@@ -11,6 +11,7 @@ public class CeramicDefinition : ScriptableObject
     public int tier;
     public string displayName;
     public Sprite silhouette;
+    public CeramicShapeArchetype shape;
     public CrackPath[] cracks;
     public int totalCracks;
 }

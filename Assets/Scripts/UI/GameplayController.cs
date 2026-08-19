@@ -316,7 +316,7 @@ public sealed class GameplayController : MonoBehaviour
 
         var homeScreenObject = new GameObject("HomeScreen");
         var homeScreen = homeScreenObject.AddComponent<HomeScreen>();
-        homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi);
+        homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi, ceramicPool);
 
         dailyHud.Configure(dailyPieceController, saveManager, ExitDailyChallengeToHome);
         dailyGameOverScreen.Configure(dailyPieceController, dailySaveTriggers, dailyMedallionController, StartOrReplayDailyAttempt, ExitDailyChallengeToHome);

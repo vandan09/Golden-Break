@@ -20,6 +20,7 @@ public sealed class PaletteDefinition : ScriptableObject
 
     public Color background;
     public Color surface;
+    public Color cardBorder;
     public Color textPrimary;
     public Color textSecondary;
     public Color goldFill;

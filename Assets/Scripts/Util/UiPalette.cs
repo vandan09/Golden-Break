@@ -64,6 +64,7 @@ public static class UiPalette
     public static Color GoldFill => _active.goldFill;
     public static Color Background => _active.background;
     public static Color Surface => _active.surface;
+    public static Color CardBorder => _active.cardBorder;
 
     public static Color[] BlockColours => new[]
     {
@@ -107,6 +108,7 @@ public static class UiPalette
         palette.paletteName = "Golden Dark";
         palette.background = FromHex("#1a1a2e");
         palette.surface = FromHex("#252545");
+        palette.cardBorder = FromHex("#34345a");
         palette.textPrimary = FromHex("#c0c0d8");
         palette.textSecondary = FromHex("#7a7a9a");
         palette.goldFill = FromHex("#e8c060");
@@ -134,6 +136,7 @@ public static class UiPalette
         palette.paletteName = "Jade Dusk";
         palette.background = FromHex("#16211e");
         palette.surface = FromHex("#1f2f2a");
+        palette.cardBorder = FromHex("#2e453d");
         palette.textPrimary = FromHex("#c4ded2");
         palette.textSecondary = FromHex("#7a9a8a");
         palette.goldFill = FromHex("#6fd9a8");

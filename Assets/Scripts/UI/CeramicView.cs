@@ -52,9 +52,13 @@ public sealed class CeramicView : MonoBehaviour
         var silhouetteObject = new GameObject("Silhouette");
         silhouetteObject.transform.SetParent(transform, false);
         silhouetteObject.transform.localPosition = new Vector3(0f, 0f, 0.1f);
-        silhouetteObject.transform.localScale = Vector3.one * 2.2f;
+        silhouetteObject.transform.localScale = Vector3.one;
         _silhouetteRenderer = silhouetteObject.AddComponent<SpriteRenderer>();
-        _silhouetteRenderer.sprite = PlaceholderSprite.GetSolid(UiPalette.Surface);
+
+        // Real shape until SetCeramic() assigns the actual tier's archetype
+        // — CeramicSilhouetteSprite.Get is cached, so this isn't wasted
+        // work, just a sane default before the first real ceramic loads.
+        _silhouetteRenderer.sprite = CeramicSilhouetteSprite.Get(CeramicShapeArchetype.Bowl);
 
         _crackRenderers = new LineRenderer[MaxCracks];
         for (int i = 0; i < MaxCracks; i++)
@@ -104,6 +108,11 @@ public sealed class CeramicView : MonoBehaviour
         Initialize();
         _definition = definition;
         _colourVariant = colourVariant;
+
+        if (definition != null)
+        {
+            _silhouetteRenderer.sprite = CeramicSilhouetteSprite.Get(definition.shape);
+        }
 
         for (int i = 0; i < MaxCracks; i++)
         {
