@@ -370,8 +370,8 @@ evidence per phase — this checklist just mirrors its top-line status.
 - [ ] Profile on budget device: frame time < 16.6ms, 0 GC alloc in gameplay — not yet profiled with the Unity Profiler; needs a USB-connected profiling session, not just "no crashes observed"
 - [ ] Peak memory < 150MB (simpler than GLYPH, should be lower) — not yet measured
 - [ ] Verify APK < 35MB — current raw testing APK is 42MB (IL2CPP + dual ARMv7/ARM64 native libs, already at `ManagedStrippingLevel.High`); this is expected for a "fat" universal APK and should be re-measured against the actual Release-stage signed **AAB** instead, which is what the Play Store delivers per-architecture (roughly half this size per device) — not a real regression, but flagging rather than quietly assuming it'll be fine
-- [ ] Full offline test
-- [ ] Save edge cases: app kill during game, corrupt save, fresh install
+- [x] Full offline test — verified on emulator: app force-killed, `airplane_mode_on` enabled via `settings`/`am broadcast`, relaunched clean, no crash, no exceptions, save data intact
+- [x] Save edge cases: app kill during game, corrupt save — both verified on emulator (force-stop mid-game + relaunch preserves ceramic/coin progress; hand-corrupted `shared_prefs` XML triggers `SaveManager`'s own logged "save data corrupted" catch and resets to a fresh, fully-functional save with zero crash). Fresh install not yet separately verified (implied by every rebuild+reinstall already done this session, but not explicitly checked as its own case)
 - [ ] All game-over/continue/restart flows
 - [ ] All ad placements on device — **blocked until Phase 6's AppLovin MAX integration exists**
 - [ ] All IAP flows on device — **blocked until Phase 6's Play Billing integration exists**
