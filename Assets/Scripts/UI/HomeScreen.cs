@@ -90,7 +90,7 @@ public sealed class HomeScreen : MonoBehaviour
         }
         PushNotificationManager.ScheduleDailyReminderIfEligible(data, todayIso);
 
-        ReviewManager.RequestReviewIfEligible(data);
+        ReviewManager.RequestReviewIfEligible(data, this);
 
         _saveManager.Save();
     }

@@ -1,7 +1,11 @@
 {
     "name": "GoldenBreak.Runtime",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "Unity.Notifications.Android",
+        "Google.Play.Review",
+        "Google.Play.Common"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

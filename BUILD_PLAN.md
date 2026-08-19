@@ -465,9 +465,9 @@ Not part of the original 5-phase plan — split out once Phase 4's actual applic
 - [ ] Implement real `IapManager.RestorePurchases` against the store's purchase history, replacing the always-"unavailable" stub
 
 **Native Android platform calls (no external account needed — pure integration work):**
-- [ ] Implement the real Android 13+ `POST_NOTIFICATIONS` permission request in `PushNotificationManager.RequestPermission`
-- [ ] Implement real 7pm-local daily-reminder scheduling (`AlarmManager`/`WorkManager`) in `PushNotificationManager.ScheduleDailyReminderIfEligible`
-- [ ] Import the Play Core review library and wire `ReviewManager.RequestReviewIfEligible`'s real `RequestReviewFlow`/`LaunchReviewFlow` call
+- [x] Implement the real Android 13+ `POST_NOTIFICATIONS` permission request in `PushNotificationManager.RequestPermission` — uses Unity's own `UnityEngine.Android.Permission`/`PermissionCallbacks` API, no custom Activity/Java plugin needed
+- [x] Implement real 7pm-local daily-reminder scheduling in `PushNotificationManager.ScheduleDailyReminderIfEligible` — via Unity's official `com.unity.mobile.notifications` package (`AndroidNotificationCenter`), not `AlarmManager`/`WorkManager` directly
+- [x] Import the Play Core review library and wire `ReviewManager.RequestReviewIfEligible`'s real `RequestReviewFlow`/`LaunchReviewFlow` call — imported via Google's official `com.google.play.review` `.unitypackage` release (bundles Play Common/Core + EDM4U), not a hand-built native plugin
 
 ### Acceptance criteria
 
