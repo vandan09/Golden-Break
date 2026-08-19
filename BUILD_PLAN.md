@@ -246,56 +246,56 @@ evidence per phase — this checklist just mirrors its top-line status.
 ### Tasks
 
 **Save and load:**
-- [ ] Implement full save data structure per spec §7.3
-- [ ] Implement save triggers: after every game-over, ceramic completion, coin change, settings change, `OnApplicationPause`
-- [ ] Implement save corruption handling (try-catch, reset to fresh, log)
-- [ ] Implement `save_version` and migration hook
+- [x] Implement full save data structure per spec §7.3
+- [x] Implement save triggers: after every game-over, ceramic completion, coin change, settings change, `OnApplicationPause`
+- [x] Implement save corruption handling (try-catch, reset to fresh, log)
+- [x] Implement `save_version` and migration hook
 
 **Coins and economy:**
-- [ ] Implement `CoinManager` per spec §4.5 economy table
-- [ ] Implement undo mechanic: remove last-placed piece, cost 50 coins or rewarded ad
-- [ ] Implement piece refresh: discard current 3 pieces, get new 3, cost 75 coins or rewarded ad
-- [ ] Implement undo and refresh UI buttons during gameplay
+- [x] Implement `CoinManager` per spec §4.5 economy table
+- [x] Implement undo mechanic: remove last-placed piece, cost 50 coins or rewarded ad
+- [x] Implement piece refresh: discard current 3 pieces, get new 3, cost 75 coins or rewarded ad
+- [x] Implement undo and refresh UI buttons during gameplay
 
 **Retention systems:**
-- [ ] Implement daily streak per spec §4.1
-- [ ] Implement daily challenge per spec §4.2 (seeded RNG, same pieces for everyone)
-- [ ] Implement personal best system and milestone rewards per spec §4.3
-- [ ] Implement push notification (day 3 permission, 7pm reminder)
-- [ ] Implement first-launch sequence: no ads or permissions in first 3 games
-- [ ] Implement Google Play In-App Review API (trigger after 3-star game-over at 20+ total games)
+- [x] Implement daily streak per spec §4.1
+- [x] Implement daily challenge per spec §4.2 (seeded RNG, same pieces for everyone) — reworked mid-Phase-4 into a fully separate object graph plus two hard-mode mechanics (large-piece-only pool, pre-filled obstacles) and its own per-attempt kintsugi medallion, per direct player feedback — see PROGRESS.md
+- [x] Implement personal best system and milestone rewards per spec §4.3
+- [ ] Implement push notification (day 3 permission, 7pm reminder) — gating logic implemented and tested (`PushNotificationManager`); the actual native Android permission request/notification scheduling is still a `TODO` stub (no `AndroidJavaObject` calls made yet). Doesn't need a paid SDK/account, just native integration work not yet done.
+- [x] Implement first-launch sequence: no ads or permissions in first 3 games
+- [ ] Implement Google Play In-App Review API (trigger after 3-star game-over at 20+ total games) — gating logic implemented and tested (`ReviewManager`), triggered on first completed ceramic instead (documented interpretation, see its own doc comment); the actual Play Core `RequestReviewFlow` call is still a `TODO` stub.
 
 **Monetization:**
-- [ ] Integrate AppLovin MAX with Golden Break ad unit IDs
-- [ ] Implement 4 rewarded placements per spec §5.1
-- [ ] Implement continue mechanic: clear bottom 2 rows + deal new pieces
-- [ ] Implement ad failure handling
-- [ ] Implement interstitial controller: every 3rd game-over, none in first 3, cap 6/day
-- [ ] Implement banner on home and gallery screens
-- [ ] Implement IAP: remove interstitials, themes, coin bundles
-- [ ] Implement IAP restore purchases
-- [ ] Implement GDPR consent flow
+- [ ] Integrate AppLovin MAX with Golden Break ad unit IDs — blocked on a real AppLovin MAX account/ad unit IDs, not on more code; `AdManager` always reports "unavailable" by design until these exist (CLAUDE.md §5.1's required failure behavior)
+- [x] Implement 4 rewarded placements per spec §5.1
+- [x] Implement continue mechanic: clear bottom 2 rows + deal new pieces
+- [x] Implement ad failure handling
+- [x] Implement interstitial controller: every 3rd game-over, none in first 3, cap 6/day
+- [x] Implement banner on home and gallery screens
+- [x] Implement IAP: remove interstitials, themes, coin bundles (entitlement bookkeeping fully implemented/tested; the actual store purchase flow is a stub blocked on real Play Billing product IDs)
+- [ ] Implement IAP restore purchases — reports "unavailable" without touching any entitlement (never silently grants/revokes); a real restore needs the store SDK this project doesn't have yet
+- [ ] Implement GDPR consent flow — resolves immediately to the conservative "no personalized ads" default; the real CMP dialog ships with the AppLovin MAX SDK, which isn't integrated yet
 
 **Analytics:**
-- [ ] Integrate GameAnalytics with new game key
-- [ ] Implement all events per spec §6.2
-- [ ] Implement custom dimensions: country, DDA state, total games
+- [ ] Integrate GameAnalytics with new game key — blocked on a real GameAnalytics account/game key; `AnalyticsManager` logs every event locally instead of throwing, ready to forward the moment the SDK exists
+- [x] Implement all events per spec §6.2
+- [x] Implement custom dimensions: country, DDA state, total games
 
 **UI screens:**
-- [ ] Build Home screen: play button, daily challenge, streak display, current ceramic preview, gallery button, settings
-- [ ] Build Game Over screen: score, best score, ceramic progress, continue offer, play again, double coins
-- [ ] Build Gallery screen: scrollable completed ceramics
-- [ ] Build Settings screen: sound, music, haptics, high contrast, cross-promo link to GLYPH
-- [ ] Build Streak popup
-- [ ] Build Daily Challenge UI
-- [ ] Move all player-facing strings to `Strings.cs`
+- [x] Build Home screen: play button, daily challenge, streak display, current ceramic preview, gallery button, settings
+- [x] Build Game Over screen: score, best score, ceramic progress, continue offer, play again, double coins
+- [x] Build Gallery screen: scrollable completed ceramics
+- [x] Build Settings screen: sound, music, haptics, high contrast, cross-promo link to GLYPH
+- [x] Build Streak popup
+- [x] Build Daily Challenge UI
+- [x] Move all player-facing strings to `Strings.cs`
 
 **Tests:**
-- [ ] Write `CoinEconomyTests`: earn, spend, balance, prevent negative
-- [ ] Write `GameOverDetectionTests`: edge cases with various piece shapes
-- [ ] Write `UndoTests`: undo after non-clearing placement works; undo blocked after line-clear; undo blocked after all 3 placed; max 1 undo per hand
-- [ ] Write `RefreshTests`: refresh only when all 3 unplaced; refresh deals new 3; max 1 per hand
-- [ ] Write `DailyChallengeSeedTest`: assert seed 20261122 produces a hardcoded known first-20-pieces sequence (cross-platform stability check)
+- [x] Write `CoinEconomyTests`: earn, spend, balance, prevent negative
+- [x] Write `GameOverDetectionTests`: edge cases with various piece shapes
+- [x] Write `UndoTests`: undo after non-clearing placement works; undo blocked after line-clear; undo blocked after all 3 placed; max 1 undo per hand
+- [x] Write `RefreshTests`: refresh only when all 3 unplaced; refresh deals new 3; max 1 per hand
+- [x] Write `DailyChallengeSeedTest`: assert seed 20261122 produces a hardcoded known first-20-pieces sequence (cross-platform stability check)
 
 ### Acceptance criteria
 
