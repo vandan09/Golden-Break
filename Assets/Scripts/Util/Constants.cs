@@ -17,7 +17,7 @@ public static class Constants
     // pixel-exact to the design mockup.
     public const float CellWorldSize = 1f;
     public const float CellGap = 0.08f;
-    public const float TrayPieceScale = 0.7f;
+    public const float TrayPieceScale = 0.5f;
     public const float DragPieceScale = 1f;
 
     // Scoring (CLAUDE.md §3.2)
@@ -49,6 +49,15 @@ public static class Constants
     public const int CoinsForDailyChallengeCompletion = 30;
     public const int UndoCostCoins = 50;
     public const int RefreshCostCoins = 75;
+
+    // Undo (50) and refresh (75) are coin-gated per CLAUDE.md §5.1, but a
+    // save used to start at 0 coins and the rewarded-ad fallback that is
+    // meant to cover a broke player is still a stub (AdManager.ShowRewarded
+    // never fires onReward — see its TODO), so a fresh player had two
+    // permanently dead buttons. This grant covers roughly three undos or
+    // two refreshes up front; after that the §4.5 earn rates (game-over,
+    // streak, daily) take over. Revisit once AppLovin is actually wired.
+    public const int StartingCoins = 150;
 
     // DDA save history (CLAUDE.md §3.7)
     public const int DdaLast10ScoresCapacity = 10;

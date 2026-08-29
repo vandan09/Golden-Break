@@ -2,37 +2,27 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Procedurally rasterizes the 3 real ceramic silhouette shapes (bowl,
-/// vase, plate) supplied by the player's Claude Design mockup — replacing
-/// <see cref="CeramicView"/>'s previous flat-rectangle placeholder. Same
-/// "generate once, cache, reuse" pattern as <see cref="PatternSprite"/>/
-/// <see cref="PlaceholderSprite"/>: no sourced art exists, but unlike
-/// those two, exact SVG path/ellipse coordinates for these 3 shapes DO
-/// exist (from the design), so they're rasterized faithfully rather than
-/// invented.
-///
-/// Coordinates below are copied directly from the design's SVG (viewBox
-/// units, y-down). Each shape is layered: a lighter back-rim ellipse,
-/// the body (a closed cubic-bezier path), then a darker "opening" ellipse
-/// on top — exactly the design's 3-layer construction. Pixels outside all
-/// three layers stay fully transparent, giving a real cutout silhouette
-/// instead of an opaque rectangle.
+/// Procedurally rasterizes the 3 ceramic silhouette shapes (bowl, vase,
+/// plate) from the Claude Design mockup's SVG data at high resolution
+/// with edge anti-aliasing for crisp rendering on modern phone screens.
+/// Same "generate once, cache, reuse" pattern as <see cref="PatternSprite"/>.
 /// </summary>
 public static class CeramicSilhouetteSprite
 {
-    // Matches CeramicView's crack-path scale exactly, so a silhouette and
-    // its cracks (control points authored in the same SVG-unit space, see
-    // CeramicAssetGenerator) line up when rendered as siblings at the same
-    // transform.
-    private static readonly float PixelsPerUnit = 1f / Constants.CeramicWorldScale;
+    // 4× the SVG viewBox dimensions — gives smooth edges on 1080p+ screens
+    // while keeping generation fast (each shape runs once and is cached).
+    private const int RasterScale = 4;
+
+    private static readonly float PixelsPerUnit = RasterScale / Constants.CeramicWorldScale;
 
     private static readonly Color RimColour = FromHex("#33304a");
     private static readonly Color BodyColour = FromHex("#2d2a42");
     private static readonly Color OpeningColour = FromHex("#221f36");
 
-    private const int BezierSamplesPerSegment = 22;
+    private const int BezierSamplesPerSegment = 40;
 
-    private static readonly Dictionary<CeramicShapeArchetype, Sprite> Cache = new Dictionary<CeramicShapeArchetype, Sprite>();
+    private static readonly Dictionary<CeramicShapeArchetype, Sprite> Cache =
+        new Dictionary<CeramicShapeArchetype, Sprite>();
 
     public static Sprite Get(CeramicShapeArchetype shape)
     {
@@ -41,142 +31,239 @@ public static class CeramicSilhouetteSprite
             return cached;
         }
 
-        Sprite sprite = shape switch
-        {
-            CeramicShapeArchetype.Bowl => BuildBowl(),
-            CeramicShapeArchetype.Vase => BuildVase(),
-            CeramicShapeArchetype.Plate => BuildPlate(),
-            _ => BuildBowl(),
-        };
-
+        // The bare silhouette is the composite with nothing repaired yet.
+        Sprite sprite = GetComposite(shape, null, 0);
         Cache[shape] = sprite;
         return sprite;
     }
 
-    // The SVG-unit point every crack's control points must be authored
-    // relative to (CeramicAssetGenerator subtracts this before storing),
-    // so a shape's cracks and its silhouette share one local origin — the
-    // shape's own bounding-box centre, since the design's own paths don't
-    // otherwise call out a single canonical "centre" point.
+    // The shape origin is its viewBox centre — crack coordinates are
+    // stored relative to it, so it has to track the artwork rather than be
+    // restated per shape.
     public static Vector2 GetLocalOrigin(CeramicShapeArchetype shape)
     {
-        return shape switch
-        {
-            CeramicShapeArchetype.Bowl => new Vector2(100f, 75f),
-            CeramicShapeArchetype.Vase => new Vector2(70f, 100f),
-            CeramicShapeArchetype.Plate => new Vector2(100f, 50f),
-            _ => Vector2.zero,
-        };
+        return GetViewBoxSize(shape) * 0.5f;
     }
 
-    // The SVG viewBox size each shape was rasterized at — lets UI-space
-    // callers (see UiCeramicPreview) work out how many pixels one local
-    // "ceramic unit" covers once the silhouette sprite is stretched to
-    // fit some on-screen rect.
     public static Vector2 GetViewBoxSize(CeramicShapeArchetype shape)
     {
-        return shape switch
+        return CeramicShapeData.Shapes.TryGetValue(shape, out CeramicShapeData.Shape data)
+            ? data.viewBox
+            : new Vector2(200f, 150f);
+    }
+
+    // Design crack strokes, verbatim: gold #e8c060 at strokeWidth 3 (2.5 on
+    // the plate) with drop-shadow(0 0 3px rgba(240,216,144,0.8)); unrepaired
+    // #4a4768 at strokeWidth 2 with no glow.
+    private static readonly Color UnrepairedCrackColour = FromHex("#4a4768");
+    private static readonly Color CrackGlowColour = FromHex("#f0d890");
+    private const float RepairedStrokeWidth = 3f;
+    private const float PlateRepairedStrokeWidth = 2.5f;
+    private const float UnrepairedStrokeWidth = 2f;
+    private const float GlowRadius = 3f;
+    private const float GlowStrength = 0.8f;
+
+    private static readonly Dictionary<(CeramicShapeArchetype shape, int cracks, int repaired, int variant), Sprite> CompositeCache =
+        new Dictionary<(CeramicShapeArchetype, int, int, int), Sprite>();
+
+    /// <summary>
+    /// The complete ceramic — silhouette plus every crack — rasterized in
+    /// one pass, exactly the way the design's SVG paints it.
+    ///
+    /// Cracks are stroked from a distance field (a pixel is covered when it
+    /// is within half the stroke width of the polyline) rather than as a
+    /// quad per segment. That is what reproduces SVG's strokeLinecap and
+    /// strokeLinejoin of "round" for free: the distance to a polyline is
+    /// naturally round at the ends and at every bend, whereas per-segment
+    /// quads leave square ends and a notch on the outside of each bend.
+    /// Coverage comes from the distance analytically instead of by
+    /// supersampling — smoother than a 4x4 grid at a fraction of the cost,
+    /// which matters because the crack pass runs over the whole texture.
+    /// </summary>
+    public static Sprite GetComposite(CeramicShapeArchetype shape, CrackPath[] cracks, int repairedCount, int colourVariant = 0)
+    {
+        int crackCount = cracks?.Length ?? 0;
+        repairedCount = Mathf.Clamp(repairedCount, 0, crackCount);
+        var key = (shape, crackCount, repairedCount, colourVariant);
+
+        if (CompositeCache.TryGetValue(key, out Sprite cached) && cached != null)
         {
-            CeramicShapeArchetype.Bowl => new Vector2(200f, 150f),
-            CeramicShapeArchetype.Vase => new Vector2(140f, 200f),
-            CeramicShapeArchetype.Plate => new Vector2(200f, 100f),
-            _ => new Vector2(200f, 150f),
-        };
-    }
-
-    private static Sprite BuildBowl()
-    {
-        const int w = 200, h = 150;
-        Texture2D tex = NewTransparentTexture(w, h);
-
-        FillEllipse(tex, 100, 35, 82, 16, RimColour);
-        FillClosedPath(tex, BowlBodyPolygon(), BodyColour);
-        FillEllipse(tex, 100, 33, 72, 12, OpeningColour);
-
-        tex.Apply();
-        return CreateSprite(tex, w, h, GetLocalOrigin(CeramicShapeArchetype.Bowl));
-    }
-
-    private static Sprite BuildVase()
-    {
-        const int w = 140, h = 200;
-        Texture2D tex = NewTransparentTexture(w, h);
-
-        FillEllipse(tex, 70, 24, 40, 10, RimColour);
-        FillClosedPath(tex, VaseBodyPolygon(), BodyColour);
-        FillEllipse(tex, 70, 22, 32, 7, OpeningColour);
-
-        tex.Apply();
-        return CreateSprite(tex, w, h, GetLocalOrigin(CeramicShapeArchetype.Vase));
-    }
-
-    private static Sprite BuildPlate()
-    {
-        const int w = 200, h = 100;
-        Texture2D tex = NewTransparentTexture(w, h);
-
-        FillEllipse(tex, 100, 30, 90, 12, RimColour);
-        FillClosedPath(tex, PlateBodyPolygon(), BodyColour);
-        FillEllipse(tex, 100, 28, 78, 9, OpeningColour);
-
-        tex.Apply();
-        return CreateSprite(tex, w, h, GetLocalOrigin(CeramicShapeArchetype.Plate));
-    }
-
-    // "M18,35 C18,35 22,120 100,132 C178,120 182,35 182,35 L172,38
-    //  C168,95 140,118 100,120 C60,118 32,95 28,38 Z"
-    private static List<Vector2> BowlBodyPolygon()
-    {
-        var pts = new List<Vector2>();
-        Vector2 start = new Vector2(18, 35);
-        pts.Add(start);
-        AppendCubic(pts, start, new Vector2(18, 35), new Vector2(22, 120), new Vector2(100, 132));
-        AppendCubic(pts, new Vector2(100, 132), new Vector2(178, 120), new Vector2(182, 35), new Vector2(182, 35));
-        pts.Add(new Vector2(172, 38));
-        AppendCubic(pts, new Vector2(172, 38), new Vector2(168, 95), new Vector2(140, 118), new Vector2(100, 120));
-        AppendCubic(pts, new Vector2(100, 120), new Vector2(60, 118), new Vector2(32, 95), new Vector2(28, 38));
-        return pts;
-    }
-
-    // "M40,24 C30,90 30,150 70,180 C110,150 110,90 100,24 L92,26
-    //  C96,80 92,140 70,164 C48,140 44,80 48,26 Z"
-    private static List<Vector2> VaseBodyPolygon()
-    {
-        var pts = new List<Vector2>();
-        Vector2 start = new Vector2(40, 24);
-        pts.Add(start);
-        AppendCubic(pts, start, new Vector2(30, 90), new Vector2(30, 150), new Vector2(70, 180));
-        AppendCubic(pts, new Vector2(70, 180), new Vector2(110, 150), new Vector2(110, 90), new Vector2(100, 24));
-        pts.Add(new Vector2(92, 26));
-        AppendCubic(pts, new Vector2(92, 26), new Vector2(96, 80), new Vector2(92, 140), new Vector2(70, 164));
-        AppendCubic(pts, new Vector2(70, 164), new Vector2(48, 140), new Vector2(44, 80), new Vector2(48, 26));
-        return pts;
-    }
-
-    // "M14,30 C14,30 20,70 100,78 C180,70 186,30 186,30 L176,33
-    //  C170,58 140,64 100,66 C60,64 30,58 24,33 Z"
-    private static List<Vector2> PlateBodyPolygon()
-    {
-        var pts = new List<Vector2>();
-        Vector2 start = new Vector2(14, 30);
-        pts.Add(start);
-        AppendCubic(pts, start, new Vector2(14, 30), new Vector2(20, 70), new Vector2(100, 78));
-        AppendCubic(pts, new Vector2(100, 78), new Vector2(180, 70), new Vector2(186, 30), new Vector2(186, 30));
-        pts.Add(new Vector2(176, 33));
-        AppendCubic(pts, new Vector2(176, 33), new Vector2(170, 58), new Vector2(140, 64), new Vector2(100, 66));
-        AppendCubic(pts, new Vector2(100, 66), new Vector2(60, 64), new Vector2(30, 58), new Vector2(24, 33));
-        return pts;
-    }
-
-    private static void AppendCubic(List<Vector2> pts, Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3)
-    {
-        for (int i = 1; i <= BezierSamplesPerSegment; i++)
-        {
-            float t = i / (float)BezierSamplesPerSegment;
-            float mt = 1f - t;
-            Vector2 point = (mt * mt * mt * p0) + (3f * mt * mt * t * p1) + (3f * mt * t * t * p2) + (t * t * t * p3);
-            pts.Add(point);
+            return cached;
         }
+
+        Vector2 viewBox = GetViewBoxSize(shape);
+        int w = (int)viewBox.x * RasterScale, h = (int)viewBox.y * RasterScale;
+        Texture2D tex = NewTransparentTexture(w, h);
+
+        PaintBody(tex, shape);
+
+        if (crackCount > 0)
+        {
+            Vector2 origin = GetLocalOrigin(shape);
+            float repairedWidth = shape == CeramicShapeArchetype.Plate
+                ? PlateRepairedStrokeWidth
+                : RepairedStrokeWidth;
+
+            // Glow underneath every gold crack first, then the strokes on
+            // top — the SVG applies the drop-shadow per path, but since the
+            // strokes themselves are opaque the result is identical and
+            // this avoids re-walking the texture once per crack.
+            Color gold = CeramicGold.ForVariant(colourVariant);
+            Color glow = colourVariant <= 0 ? CrackGlowColour : CeramicGold.GlowForVariant(colourVariant);
+
+            for (int i = 0; i < repairedCount; i++)
+            {
+                StrokePolyline(tex, ToSvgSpace(cracks[i], origin), repairedWidth + GlowRadius, glow, GlowStrength, softEdge: true);
+            }
+
+            for (int i = 0; i < crackCount; i++)
+            {
+                bool repaired = i < repairedCount;
+                StrokePolyline(
+                    tex,
+                    ToSvgSpace(cracks[i], origin),
+                    repaired ? repairedWidth : UnrepairedStrokeWidth,
+                    repaired ? gold : UnrepairedCrackColour,
+                    1f,
+                    softEdge: false);
+            }
+        }
+
+        tex.Apply();
+        Sprite sprite = CreateSprite(tex, w, h, GetLocalOrigin(shape));
+        CompositeCache[key] = sprite;
+        return sprite;
+    }
+
+    // CrackPath points are local space (y-up, relative to the shape origin);
+    // rasterizing happens in the SVG's own y-down viewBox space.
+    private static Vector2[] ToSvgSpace(CrackPath path, Vector2 origin)
+    {
+        if (path.points == null)
+        {
+            return System.Array.Empty<Vector2>();
+        }
+
+        var svg = new Vector2[path.points.Length];
+        for (int i = 0; i < path.points.Length; i++)
+        {
+            svg[i] = new Vector2(path.points[i].x + origin.x, origin.y - path.points[i].y);
+        }
+
+        return svg;
+    }
+
+    // Rim ellipse, then the body wall, then the opening — the exact paint
+    // order the design SVG uses, driven off its own coordinates.
+    private static void PaintBody(Texture2D tex, CeramicShapeArchetype shape)
+    {
+        if (!CeramicShapeData.Shapes.TryGetValue(shape, out CeramicShapeData.Shape data))
+        {
+            return;
+        }
+
+        FillEllipseAA(tex, data.rim.cx, data.rim.cy, data.rim.rx, data.rim.ry, RimColour);
+
+        Vector2[] body = SvgPath.ToPoints(data.body);
+        if (body.Length > 2)
+        {
+            FillClosedPathAA(tex, new List<Vector2>(body), BodyColour);
+        }
+
+        FillEllipseAA(tex, data.opening.cx, data.opening.cy, data.opening.rx, data.opening.ry, OpeningColour);
+    }
+
+    // Blends a round-capped, round-joined stroke along the polyline.
+    // softEdge fades linearly across the whole radius (the drop-shadow);
+    // otherwise coverage is a one-pixel analytic edge (the stroke itself).
+    private static void StrokePolyline(Texture2D tex, Vector2[] svgPoints, float strokeWidth, Color colour, float strength, bool softEdge)
+    {
+        if (svgPoints.Length < 2)
+        {
+            return;
+        }
+
+        float half = strokeWidth * 0.5f;
+        int w = tex.width, h = tex.height;
+
+        // Only touch the pixels this stroke can reach.
+        float minX = float.MaxValue, maxX = float.MinValue, minY = float.MaxValue, maxY = float.MinValue;
+        foreach (Vector2 p in svgPoints)
+        {
+            minX = Mathf.Min(minX, p.x); maxX = Mathf.Max(maxX, p.x);
+            minY = Mathf.Min(minY, p.y); maxY = Mathf.Max(maxY, p.y);
+        }
+
+        int x0 = Mathf.Max(0, (int)((minX - half - 1f) * RasterScale));
+        int x1 = Mathf.Min(w - 1, (int)((maxX + half + 1f) * RasterScale));
+
+        // The viewBox is y-down but the texture is y-up, so the SVG y range
+        // has to be flipped before it can index rows: the largest SVG y is
+        // the SMALLEST texture row. Using the SVG range directly clipped
+        // every stroke to the sliver where the two ranges happened to
+        // overlap — short cracks vanished to a nub, long ones lost an end.
+        int y0 = Mathf.Max(0, (int)(h - 1 - ((maxY + half + 1f) * RasterScale)));
+        int y1 = Mathf.Min(h - 1, (int)(h - 1 - ((minY - half - 1f) * RasterScale)));
+
+        for (int py = y0; py <= y1; py++)
+        {
+            for (int px = x0; px <= x1; px++)
+            {
+                // Texture is y-up, the viewBox is y-down.
+                float sx = (px + 0.5f) / RasterScale;
+                float sy = ((h - 1 - py) + 0.5f) / RasterScale;
+                var sample = new Vector2(sx, sy);
+
+                float distance = float.MaxValue;
+                for (int s = 1; s < svgPoints.Length; s++)
+                {
+                    distance = Mathf.Min(distance, DistanceToSegment(sample, svgPoints[s - 1], svgPoints[s]));
+                    if (distance <= 0f)
+                    {
+                        break;
+                    }
+                }
+
+                float coverage = softEdge
+                    ? Mathf.Clamp01(1f - (distance / half))
+                    : Mathf.Clamp01((half - distance) * RasterScale + 0.5f);
+
+                if (coverage <= 0f)
+                {
+                    continue;
+                }
+
+                BlendPixel(tex, px, py, colour, coverage * strength);
+            }
+        }
+    }
+
+    private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
+    {
+        Vector2 ab = b - a;
+        float lengthSquared = ab.sqrMagnitude;
+        if (lengthSquared < 1e-6f)
+        {
+            return Vector2.Distance(p, a);
+        }
+
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / lengthSquared);
+        return Vector2.Distance(p, a + (ab * t));
+    }
+
+    private static void BlendPixel(Texture2D tex, int x, int y, Color colour, float alpha)
+    {
+        Color existing = tex.GetPixel(x, y);
+        float outAlpha = alpha + (existing.a * (1f - alpha));
+        if (outAlpha <= 0f)
+        {
+            tex.SetPixel(x, y, Color.clear);
+            return;
+        }
+
+        Color blended = ((colour * alpha) + (existing * existing.a * (1f - alpha))) / outAlpha;
+        blended.a = outAlpha;
+        tex.SetPixel(x, y, blended);
     }
 
     private static Texture2D NewTransparentTexture(int width, int height)
@@ -192,44 +279,105 @@ public static class CeramicSilhouetteSprite
         return tex;
     }
 
-    private static void FillEllipse(Texture2D tex, float cx, float cy, float rx, float ry, Color colour)
+    // Anti-aliased ellipse: uses signed distance from the ellipse boundary
+    // to smoothly blend alpha at the edges instead of a hard in/out test.
+    private static void FillEllipseAA(Texture2D tex, float cx, float cy, float rx, float ry, Color colour)
     {
         int w = tex.width, h = tex.height;
-        for (int ty = 0; ty < h; ty++)
+        float edgeWidth = 1.2f;
+
+        int minTx = Mathf.Max(0, Mathf.FloorToInt((cx - rx - 1f) * RasterScale));
+        int maxTx = Mathf.Min(w - 1, Mathf.CeilToInt((cx + rx + 1f) * RasterScale));
+        int minTy = Mathf.Max(0, Mathf.FloorToInt(((float)h / RasterScale - cy - ry - 1f) * RasterScale));
+        int maxTy = Mathf.Min(h - 1, Mathf.CeilToInt(((float)h / RasterScale - cy + ry + 1f) * RasterScale));
+
+        for (int ty = minTy; ty <= maxTy; ty++)
         {
-            float svgY = h - (ty + 0.5f);
-            for (int tx = 0; tx < w; tx++)
+            float svgY = (h - (ty + 0.5f)) / RasterScale;
+            for (int tx = minTx; tx <= maxTx; tx++)
             {
-                float svgX = tx + 0.5f;
+                float svgX = (tx + 0.5f) / RasterScale;
                 float nx = (svgX - cx) / rx;
                 float ny = (svgY - cy) / ry;
-                if ((nx * nx) + (ny * ny) <= 1f)
+                float dist = (nx * nx) + (ny * ny);
+
+                if (dist <= 1f)
                 {
                     tex.SetPixel(tx, ty, colour);
+                }
+                else
+                {
+                    float edgeDist = (Mathf.Sqrt(dist) - 1f) * Mathf.Min(rx, ry) * RasterScale;
+                    if (edgeDist < edgeWidth)
+                    {
+                        float alpha = 1f - (edgeDist / edgeWidth);
+                        Color existing = tex.GetPixel(tx, ty);
+                        Color blended = Color.Lerp(existing, colour, alpha);
+                        blended.a = Mathf.Max(existing.a, alpha);
+                        tex.SetPixel(tx, ty, blended);
+                    }
                 }
             }
         }
     }
 
-    // Standard even-odd ray-casting point-in-polygon test, evaluated per
-    // pixel against the bezier-sampled boundary — fast enough here since
-    // every shape is generated exactly once and cached (same tradeoff
-    // PatternSprite already makes for its own per-pixel generation).
-    private static void FillClosedPath(Texture2D tex, List<Vector2> polygon, Color colour)
+    // Anti-aliased polygon fill: uses 2×2 sub-pixel sampling at the edges.
+    private static void FillClosedPathAA(Texture2D tex, List<Vector2> polygon, Color colour)
     {
         int w = tex.width, h = tex.height;
-        for (int ty = 0; ty < h; ty++)
+
+        Rect bounds = ComputeBounds(polygon);
+        int minTx = Mathf.Max(0, Mathf.FloorToInt((bounds.xMin - 1f) * RasterScale));
+        int maxTx = Mathf.Min(w - 1, Mathf.CeilToInt((bounds.xMax + 1f) * RasterScale));
+        int minTy = Mathf.Max(0, Mathf.FloorToInt(((float)h / RasterScale - bounds.yMax - 1f) * RasterScale));
+        int maxTy = Mathf.Min(h - 1, Mathf.CeilToInt(((float)h / RasterScale - bounds.yMin + 1f) * RasterScale));
+
+        for (int ty = minTy; ty <= maxTy; ty++)
         {
-            float svgY = h - (ty + 0.5f);
-            for (int tx = 0; tx < w; tx++)
+            float svgYCenter = (h - (ty + 0.5f)) / RasterScale;
+            for (int tx = minTx; tx <= maxTx; tx++)
             {
-                float svgX = tx + 0.5f;
-                if (IsInsidePolygon(polygon, svgX, svgY))
+                float svgXCenter = (tx + 0.5f) / RasterScale;
+
+                if (IsInsidePolygon(polygon, svgXCenter, svgYCenter))
                 {
                     tex.SetPixel(tx, ty, colour);
                 }
+                else
+                {
+                    // 2×2 sub-pixel AA at edges
+                    float step = 0.25f / RasterScale;
+                    int hits = 0;
+                    if (IsInsidePolygon(polygon, svgXCenter - step, svgYCenter - step)) hits++;
+                    if (IsInsidePolygon(polygon, svgXCenter + step, svgYCenter - step)) hits++;
+                    if (IsInsidePolygon(polygon, svgXCenter - step, svgYCenter + step)) hits++;
+                    if (IsInsidePolygon(polygon, svgXCenter + step, svgYCenter + step)) hits++;
+
+                    if (hits > 0)
+                    {
+                        float alpha = hits * 0.25f;
+                        Color existing = tex.GetPixel(tx, ty);
+                        Color blended = Color.Lerp(existing, colour, alpha);
+                        blended.a = Mathf.Max(existing.a, alpha);
+                        tex.SetPixel(tx, ty, blended);
+                    }
+                }
             }
         }
+    }
+
+    private static Rect ComputeBounds(List<Vector2> polygon)
+    {
+        float minX = float.MaxValue, maxX = float.MinValue;
+        float minY = float.MaxValue, maxY = float.MinValue;
+        foreach (Vector2 p in polygon)
+        {
+            if (p.x < minX) minX = p.x;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.y > maxY) maxY = p.y;
+        }
+        return new Rect(minX, minY, maxX - minX, maxY - minY);
     }
 
     private static bool IsInsidePolygon(List<Vector2> polygon, float x, float y)
@@ -253,7 +401,7 @@ public static class CeramicSilhouetteSprite
 
     private static Sprite CreateSprite(Texture2D tex, int width, int height, Vector2 svgOrigin)
     {
-        Vector2 pivot = new Vector2(svgOrigin.x / width, 1f - (svgOrigin.y / height));
+        Vector2 pivot = new Vector2(svgOrigin.x * RasterScale / width, 1f - (svgOrigin.y * RasterScale / height));
         return Sprite.Create(tex, new Rect(0, 0, width, height), pivot, PixelsPerUnit);
     }
 

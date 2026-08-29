@@ -27,7 +27,7 @@ public sealed class GameOverScreen : MonoBehaviour
     private const float BottomPadding = 40f;
 
     private const int TitleFontSize = 13;
-    private const int ScoreFontSize = 50;
+    private const int ScoreFontSize = 54;
     private const int BadgeFontSize = 13;
     private const int CeramicDetailFontSize = 12;
     private const int ContinueLabelFontSize = 16;
@@ -62,6 +62,7 @@ public sealed class GameOverScreen : MonoBehaviour
     private GameObject _panel;
     private Text _finalScoreText;
     private GameObject _newBestBadge;
+    private GameObject _newBestGlow;
     private Text _ceramicDetailText;
     private UiCeramicPreview _ceramicPreview;
     private RectTransform _progressFillRect;
@@ -153,9 +154,15 @@ public sealed class GameOverScreen : MonoBehaviour
         image.type = Image.Type.Sliced;
         image.color = BadgeBackground;
 
-        var outline = _newBestBadge.AddComponent<Outline>();
-        outline.effectColor = BadgeBorder;
-        outline.effectDistance = new Vector2(1f, -1f);
+        AddBorderSprite(_newBestBadge.GetComponent<RectTransform>(), 16, BadgeBorder, 1);
+
+        // Subtler than a button: the badge is small, and at full button alpha
+        // the wash swamps the 120x30 pill it is meant to rim.
+        //
+        // Held as a field because the glow is a SIBLING of the badge, so the
+        // badge being switched off for a non-record game would otherwise
+        // leave its halo glowing over nothing.
+        _newBestGlow = UiKit.AddGlowBehind(_newBestBadge.GetComponent<RectTransform>(), UiPalette.GoldFill, 16, 0.18f, 15).gameObject;
 
         var layout = _newBestBadge.AddComponent<HorizontalLayoutGroup>();
         layout.childAlignment = TextAnchor.MiddleCenter;
@@ -244,40 +251,19 @@ public sealed class GameOverScreen : MonoBehaviour
 
     private void BuildContinueButton(Transform parent, float bottomY)
     {
-        _continueButton = CreateBottomAnchoredStretchObject(parent, "ContinueButton", bottomY, ContinueHeight);
-        Image buttonImage = _continueButton.AddComponent<Image>();
-        buttonImage.sprite = RoundedRectSprite.Get((int)ContinueRadius);
-        buttonImage.type = Image.Type.Sliced;
-        buttonImage.color = UiPalette.Surface;
-        AddBorder(_continueButton.GetComponent<RectTransform>(), UiPalette.GoldFill);
-        _continueButton.AddComponent<Button>().onClick.AddListener(OnContinueClicked);
+        Button button = UiKit.BuildButton(
+            parent,
+            "ContinueButton",
+            Strings.GameOverContinueButton,
+            OnContinueClicked,
+            UiKit.ButtonStyle.Primary,
+            ContinueHeight,
+            TriangleSprite.Get(),
+            new Vector2(12f, 16f));
 
-        var contentObject = new GameObject("Content");
-        var contentRect = contentObject.AddComponent<RectTransform>();
-        contentObject.transform.SetParent(_continueButton.transform, false);
-        contentRect.anchorMin = Vector2.zero;
-        contentRect.anchorMax = Vector2.one;
-        contentRect.offsetMin = Vector2.zero;
-        contentRect.offsetMax = Vector2.zero;
-        var layout = contentObject.AddComponent<HorizontalLayoutGroup>();
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.spacing = 10f;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = false;
-
-        var triangleObject = new GameObject("Triangle");
-        var triangleRect = triangleObject.AddComponent<RectTransform>();
-        triangleObject.transform.SetParent(contentObject.transform, false);
-        triangleRect.sizeDelta = new Vector2(12f, 16f);
-        var triangleImage = triangleObject.AddComponent<Image>();
-        triangleImage.sprite = TriangleSprite.Get();
-        triangleImage.color = UiPalette.GoldFill;
-        var triangleLayoutElement = triangleObject.AddComponent<LayoutElement>();
-        triangleLayoutElement.preferredWidth = 12f;
-        triangleLayoutElement.preferredHeight = 16f;
-
-        Text label = CreateAutoSizeText(contentObject.transform, Strings.GameOverContinueButton, ContinueLabelFontSize, UiPalette.GoldFill);
-        label.fontStyle = FontStyle.Bold;
+        _continueButton = button.gameObject;
+        UiKit.AnchorBottomStretch(_continueButton.GetComponent<RectTransform>(), bottomY, ContinueHeight, SidePadding);
+        UiKit.AddPrimaryGlow(button, ContinueHeight);
 
         var adTagObject = new GameObject("AdTag");
         var adTagRect = adTagObject.AddComponent<RectTransform>();
@@ -303,22 +289,15 @@ public sealed class GameOverScreen : MonoBehaviour
 
     private void BuildPlayAgainButton(Transform parent, float bottomY)
     {
-        GameObject buttonObject = CreateBottomAnchoredStretchObject(parent, "PlayAgainButton", bottomY, PlayAgainHeight);
-        Image buttonImage = buttonObject.AddComponent<Image>();
-        buttonImage.sprite = RoundedRectSprite.Get((int)PlayAgainRadius);
-        buttonImage.type = Image.Type.Sliced;
-        buttonImage.color = Color.clear;
-        AddBorder(buttonObject.GetComponent<RectTransform>(), UiPalette.CardBorder);
-        buttonObject.AddComponent<Button>().onClick.AddListener(OnPlayAgainClicked);
+        Button button = UiKit.BuildButton(
+            parent,
+            "PlayAgainButton",
+            Strings.GameOverPlayAgainButton,
+            OnPlayAgainClicked,
+            UiKit.ButtonStyle.Secondary,
+            PlayAgainHeight);
 
-        Text label = CreateAutoSizeText(buttonObject.transform, Strings.GameOverPlayAgainButton, PlayAgainLabelFontSize, UiPalette.TextPrimary);
-        label.fontStyle = FontStyle.Normal;
-        var labelRect = label.GetComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = Vector2.zero;
-        labelRect.offsetMax = Vector2.zero;
-        labelRect.sizeDelta = Vector2.zero;
+        UiKit.AnchorBottomStretch(button.GetComponent<RectTransform>(), bottomY, PlayAgainHeight, SidePadding);
     }
 
     private void BuildDoubleCoinsRow(Transform parent, float bottomY)
@@ -357,25 +336,34 @@ public sealed class GameOverScreen : MonoBehaviour
         _doubleCoinsText.fontStyle = FontStyle.Bold;
     }
 
-    private static GameObject CreateBottomAnchoredStretchObject(Transform parent, string name, float bottomY, float height)
+    private static void AddBorder(RectTransform target, Color colour, int strokeWidth = 1)
     {
-        var go = new GameObject(name);
-        var rect = go.AddComponent<RectTransform>();
-        go.transform.SetParent(parent, false);
-        rect.anchorMin = new Vector2(0f, 0f);
-        rect.anchorMax = new Vector2(1f, 0f);
-        rect.pivot = new Vector2(0.5f, 0f);
-        rect.offsetMin = new Vector2(SidePadding, bottomY);
-        rect.offsetMax = new Vector2(-SidePadding, bottomY + height);
-        return go;
+        AddBorderSprite(target, (int)ContinueRadius, colour, strokeWidth);
     }
 
-    private static void AddBorder(RectTransform target, Color colour)
+    private static void AddBorderSprite(RectTransform target, int cornerRadiusPixels, Color colour, int strokeWidth = 1)
     {
-        var outline = target.gameObject.AddComponent<Outline>();
-        outline.effectColor = colour;
-        outline.effectDistance = new Vector2(1.5f, -1.5f);
-        outline.useGraphicAlpha = true;
+        var borderObject = new GameObject("Border");
+        var borderRect = borderObject.AddComponent<RectTransform>();
+        borderObject.transform.SetParent(target, false);
+        borderRect.anchorMin = Vector2.zero;
+        borderRect.anchorMax = Vector2.one;
+        borderRect.offsetMin = Vector2.zero;
+        borderRect.offsetMax = Vector2.zero;
+
+        var image = borderObject.AddComponent<Image>();
+        image.sprite = RoundedRectBorderSprite.Get(cornerRadiusPixels, strokeWidth);
+        image.type = Image.Type.Sliced;
+        image.color = colour;
+        image.raycastTarget = false;
+
+        // A border is a full-rect overlay, never a layout row. Without this,
+        // a parent VerticalLayoutGroup/HorizontalLayoutGroup treats it as a
+        // child and gives it a row of its own — Image implements
+        // ILayoutElement, so it reports the border sprite's native size —
+        // squeezing the real content. On the gallery card that pushed the
+        // date and score rows to zero height, making them invisible.
+        borderObject.AddComponent<LayoutElement>().ignoreLayout = true;
     }
 
     private static Text CreateTopAnchoredText(Transform parent, string name, string initialText, float topY, float height, int fontSize, Color colour, bool letterSpacing = false)
@@ -435,7 +423,9 @@ public sealed class GameOverScreen : MonoBehaviour
         int currentScore = _pieceController.Score.CurrentScore;
         int bestScore = _pieceController.Score.BestScore;
         _finalScoreText.text = currentScore.ToString("N0");
-        _newBestBadge.SetActive(currentScore >= bestScore && currentScore > 0);
+        bool isNewBest = currentScore >= bestScore && currentScore > 0;
+        _newBestBadge.SetActive(isNewBest);
+        _newBestGlow.SetActive(isNewBest);
 
         if (_ceramicController != null)
         {
@@ -453,6 +443,7 @@ public sealed class GameOverScreen : MonoBehaviour
         _doubleCoinsRow.SetActive(true);
 
         _panel.SetActive(true);
+        UiKit.PlayOverlayShow(_panel);
 
         if (_saveTriggers != null && _saveTriggers.LastStreakResult.HasValue)
         {

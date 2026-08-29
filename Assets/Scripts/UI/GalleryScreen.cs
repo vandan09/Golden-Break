@@ -33,10 +33,28 @@ public sealed class GalleryScreen : MonoBehaviour
     private const float RowGap = 14f;
     private const float ThumbnailHeight = 100f;
     private const float CardPadding = 12f;
+    private const float CardRowSpacing = 8f;
+
+    // The design gives the thumbnail well its own colour (#1c1c34) rather
+    // than reusing the board's empty-cell fill (#1e1e38) — a shade darker,
+    // so the ceramic reads as sitting in a recess rather than on a tile.
+    private static readonly Color ThumbnailWell = new Color(0.109f, 0.109f, 0.204f);
+
+    // Design Screen 5 closes the grid with a dashed "next piece" tile —
+    // the in-progress ceramic's slot, so the gallery never ends on a hard
+    // edge and always shows there is more to earn.
+    private static readonly Color PlaceholderText = new Color(0.290f, 0.290f, 0.408f);
 
     private const int TitleFontSize = 20;
     private const int CardTierFontSize = 14;
     private const int CardDetailFontSize = 12;
+
+    // DEV ONLY - see BuildDevPreviewToggle.
+    private Text _titleText;
+    private Text _devToggleLabel;
+    // DEV builds land on the full catalogue so all 21 ceramics are visible
+    // the moment the gallery opens, with no in-place refresh involved.
+    private bool _devPreviewActive = true;
 
     private GalleryManager _galleryManager;
     private CeramicDefinition[] _ceramicPool;
@@ -133,11 +151,88 @@ public sealed class GalleryScreen : MonoBehaviour
         titleText.fontStyle = FontStyle.Bold;
         titleText.alignment = TextAnchor.MiddleLeft;
         titleText.color = UiPalette.TextPrimary;
-        titleText.text = Strings.GalleryTitle;
+        titleText.text = _devPreviewActive ? "Gallery · ALL" : Strings.GalleryTitle;
         var titleLayoutElement = titleObject.AddComponent<LayoutElement>();
         titleLayoutElement.preferredWidth = 200f;
         titleLayoutElement.preferredHeight = HeaderHeight;
+
+        _titleText = titleText;
+
+        BuildDevPreviewToggle(headerObject.transform);
     }
+
+    // ===================== DEV ONLY — REMOVE BEFORE RELEASE ==============
+    // A visible toggle that swaps the earned gallery for a catalogue of
+    // every ceramic and colour variant, so the artwork can be checked on a
+    // real device without playing to tier 21.
+    //
+    // This was a hidden five-tap gesture on the title first. That was the
+    // wrong call: the gesture could not be verified end to end (the test
+    // invoked onClick directly, which proves the cards build but not that
+    // a tap ever reaches the button), and on device it did nothing. A
+    // visible button removes the whole class of problem — and since this
+    // is scaffolding that gets deleted before release, hiding it bought
+    // nothing anyway.
+    //
+    // Delete BuildDevPreviewToggle, OnDevPreviewToggled,
+    // BuildAllVariantsPreview, BuildPreviewCard, MetalName and the
+    // _devPreviewActive field to strip it.
+    private void BuildDevPreviewToggle(Transform header)
+    {
+        var buttonObject = new GameObject("DevPreviewToggle");
+        buttonObject.transform.SetParent(header, false);
+
+        var background = buttonObject.AddComponent<Image>();
+        background.sprite = RoundedRectSprite.Get(14);
+        background.type = Image.Type.Sliced;
+        background.color = UiPalette.Surface;
+
+        var button = buttonObject.AddComponent<Button>();
+        button.transition = Selectable.Transition.None;
+        button.onClick.AddListener(OnDevPreviewToggled);
+
+        var layoutElement = buttonObject.AddComponent<LayoutElement>();
+        layoutElement.preferredWidth = 74f;
+        layoutElement.preferredHeight = HeaderHeight;
+
+        var labelObject = new GameObject("Label");
+        labelObject.transform.SetParent(buttonObject.transform, false);
+        _devToggleLabel = labelObject.AddComponent<Text>();
+        _devToggleLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        _devToggleLabel.fontSize = CardDetailFontSize;
+        _devToggleLabel.fontStyle = FontStyle.Bold;
+        _devToggleLabel.alignment = TextAnchor.MiddleCenter;
+        _devToggleLabel.color = UiPalette.GoldFill;
+        _devToggleLabel.text = _devPreviewActive ? "MINE" : "ALL";
+        _devToggleLabel.raycastTarget = false;
+
+        var labelRect = labelObject.GetComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+    }
+
+    private void OnDevPreviewToggled()
+    {
+        _devPreviewActive = !_devPreviewActive;
+        _titleText.text = _devPreviewActive ? "Gallery · ALL" : Strings.GalleryTitle;
+        _devToggleLabel.text = _devPreviewActive ? "MINE" : "ALL";
+        Debug.Log($"[DEVPREVIEW] tapped, active={_devPreviewActive}");
+
+        // Closing back to Home rather than rebuilding in place. Cards
+        // rebuilt on a live canvas do not reach the screen on Android —
+        // the objects are correct (reopening shows exactly the expected
+        // content) but nothing repaints, and neither a same-frame
+        // SetActive cycle nor one spanning a frame changed that. Content
+        // built as the screen is opened does render, so the toggle picks
+        // the mode and reopening the gallery shows it.
+        //
+        // Same family as PROGRESS.md's OPEN BUG: freshly built objects
+        // render, mutated live ones do not.
+        Hide();
+    }
+    // ===================== END DEV ONLY ==================================
 
     private void BuildEmptyStateText(Transform parent)
     {
@@ -231,7 +326,21 @@ public sealed class GalleryScreen : MonoBehaviour
         float contentWidth = ResponsiveCanvasSetup.ReferenceWidth - (SidePadding * 2f);
         float cellWidth = (contentWidth - ColumnGap) / 2f;
         var gridLayout = _gridContentRect.GetComponent<GridLayoutGroup>();
-        gridLayout.cellSize = new Vector2(cellWidth, cellWidth * 1.35f);
+        // Height from real content rather than a guessed width ratio:
+        // padding + thumbnail + two gaps + the two text rows.
+        float cellHeight = (CardPadding * 2f)
+            + ThumbnailHeight
+            + (CardRowSpacing * 2f)
+            + (CardDetailFontSize * 1.3f)
+            + (CardTierFontSize * 1.3f);
+
+        gridLayout.cellSize = new Vector2(cellWidth, cellHeight);
+
+        if (_devPreviewActive)
+        {
+            BuildAllVariantsPreview();
+            return;
+        }
 
         IReadOnlyList<GalleryEntryData> entries = _galleryManager.Entries;
         _emptyStateText.gameObject.SetActive(entries.Count == 0);
@@ -243,11 +352,114 @@ public sealed class GalleryScreen : MonoBehaviour
         {
             BuildCard(entries[i]);
         }
+
+        // Design Screen 5 always closes the grid with the "next piece"
+        // slot — shown only once at least one ceramic exists, since with
+        // none the empty-state message is already saying the same thing.
+        if (entries.Count > 0)
+        {
+            BuildNextPiecePlaceholder();
+        }
+    }
+
+    private void BuildNextPiecePlaceholder()
+    {
+        var placeholderObject = new GameObject("Card_NextPiece");
+        placeholderObject.transform.SetParent(_gridContentRect, false);
+        placeholderObject.AddComponent<RectTransform>();
+
+        var dashed = placeholderObject.AddComponent<Image>();
+        dashed.sprite = DashedRoundedRectSprite.Get(18, 2, 10, 8);
+        dashed.color = UiPalette.CardBorder;
+        dashed.raycastTarget = false;
+
+        var labelObject = new GameObject("Label");
+        labelObject.transform.SetParent(placeholderObject.transform, false);
+        var label = labelObject.AddComponent<Text>();
+        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        label.fontSize = CardDetailFontSize;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = PlaceholderText;
+        label.text = Strings.GalleryNextPiece;
+        label.raycastTarget = false;
+
+        var labelRect = labelObject.GetComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+    }
+
+    // DEV ONLY — every ceramic the game can show, in one scroll: all nine
+    // tiers in the base gold, then the four looping tiers (6-9, per §3.4)
+    // in each further metal variant. 21 cards in total.
+    private void BuildAllVariantsPreview()
+    {
+        _emptyStateText.gameObject.SetActive(false);
+
+        for (int variant = 0; variant < CeramicGold.VariantCount; variant++)
+        {
+            // Variant 0 covers every tier; later variants only ever apply to
+            // the tiers that actually repeat.
+            int firstTier = variant == 0 ? 1 : 6;
+
+            for (int tier = firstTier; tier <= 9; tier++)
+            {
+                CeramicDefinition definition = ResolveDefinition(tier);
+                if (definition == null)
+                {
+                    continue;
+                }
+
+                BuildPreviewCard(definition, variant);
+            }
+        }
+    }
+
+    private void BuildPreviewCard(CeramicDefinition definition, int colourVariant)
+    {
+        GameObject cardObject = BuildCardShell($"Preview_T{definition.tier}_V{colourVariant}");
+        BuildCardThumbnail(cardObject, definition, definition.totalCracks, colourVariant);
+
+        BuildCardText(
+            cardObject.transform,
+            $"T{definition.tier} · {definition.displayName}",
+            CardDetailFontSize,
+            UiPalette.TextSecondary);
+        BuildCardText(
+            cardObject.transform,
+            $"{definition.totalCracks} cracks · {MetalName(colourVariant)}",
+            CardTierFontSize,
+            CeramicGold.ForVariant(colourVariant),
+            bold: true);
+    }
+
+    private static string MetalName(int colourVariant)
+    {
+        switch (colourVariant)
+        {
+            case 1: return "rose gold";
+            case 2: return "silver";
+            case 3: return "copper";
+            default: return "gold";
+        }
     }
 
     private void BuildCard(GalleryEntryData entry)
     {
-        var cardObject = new GameObject($"Card_Tier{entry.Tier}");
+        GameObject cardObject = BuildCardShell($"Card_Tier{entry.Tier}");
+        CeramicDefinition entryDefinition = ResolveDefinition(entry.Tier);
+        // A gallery entry is always a completed ceramic — every crack
+        // repaired, regardless of that definition's own totalCracks.
+        BuildCardThumbnail(cardObject, entryDefinition, entryDefinition != null ? entryDefinition.totalCracks : 0, 0);
+
+        BuildCardText(cardObject.transform, FormatDate(entry.Date), CardDetailFontSize, UiPalette.TextSecondary);
+        BuildCardText(cardObject.transform, string.Format(Strings.GalleryCardScoreFormat, entry.Score.ToString("N0")), CardTierFontSize, UiPalette.TextPrimary, bold: true);
+    }
+
+    private GameObject BuildCardShell(string name)
+    {
+        var cardObject = new GameObject(name);
         cardObject.transform.SetParent(_gridContentRect, false);
         cardObject.AddComponent<RectTransform>();
 
@@ -255,26 +467,34 @@ public sealed class GalleryScreen : MonoBehaviour
         cardImage.sprite = RoundedRectSprite.Get(18);
         cardImage.type = Image.Type.Sliced;
         cardImage.color = UiPalette.Surface;
-        var outline = cardObject.AddComponent<Outline>();
-        outline.effectColor = UiPalette.CardBorder;
-        outline.effectDistance = new Vector2(1f, -1f);
+        AddBorder(cardObject.GetComponent<RectTransform>(), 18, UiPalette.CardBorder);
 
         var layout = cardObject.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset((int)CardPadding, (int)CardPadding, (int)CardPadding, (int)CardPadding);
-        layout.spacing = 8f;
+        layout.spacing = CardRowSpacing;
         layout.childAlignment = TextAnchor.UpperLeft;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
         layout.childControlWidth = true;
-        layout.childControlHeight = false;
 
+        // MUST be true: with it false the group ignores each child's
+        // LayoutElement.preferredHeight and uses the raw RectTransform size
+        // instead, so every Text claimed uGUI's default 100px. Three rows of
+        // that overflowed the cell and pushed the score outside the card.
+        layout.childControlHeight = true;
+
+        return cardObject;
+    }
+
+    private void BuildCardThumbnail(GameObject cardObject, CeramicDefinition definition, int cracksRepaired, int colourVariant)
+    {
         var thumbnailObject = new GameObject("Thumbnail");
-        var thumbnailRect = thumbnailObject.AddComponent<RectTransform>();
+        thumbnailObject.AddComponent<RectTransform>();
         thumbnailObject.transform.SetParent(cardObject.transform, false);
         var thumbnailImage = thumbnailObject.AddComponent<Image>();
         thumbnailImage.sprite = RoundedRectSprite.Get(14);
         thumbnailImage.type = Image.Type.Sliced;
-        thumbnailImage.color = UiPalette.EmptyCellFill;
+        thumbnailImage.color = ThumbnailWell;
         var thumbnailLayoutElement = thumbnailObject.AddComponent<LayoutElement>();
         thumbnailLayoutElement.preferredHeight = ThumbnailHeight;
 
@@ -287,16 +507,26 @@ public sealed class GalleryScreen : MonoBehaviour
         iconRect.anchoredPosition = Vector2.zero;
         iconRect.sizeDelta = new Vector2(ThumbnailHeight - 20f, ThumbnailHeight - 20f);
 
-        CeramicDefinition definition = ResolveDefinition(entry.Tier);
         var preview = iconObject.AddComponent<UiCeramicPreview>();
         preview.Configure(iconRect);
-        // A gallery entry is always a completed ceramic — every crack
-        // repaired, unconditionally, regardless of the definition's own
-        // totalCracks.
-        preview.SetCeramic(definition, definition != null ? definition.totalCracks : 0);
+        preview.SetCeramic(definition, cracksRepaired, colourVariant);
+    }
 
-        BuildCardText(cardObject.transform, entry.Date, CardDetailFontSize, UiPalette.TextSecondary);
-        BuildCardText(cardObject.transform, string.Format(Strings.GalleryCardScoreFormat, entry.Score.ToString("N0")), CardTierFontSize, UiPalette.TextPrimary, bold: true);
+    // Save data stores an ISO date so it stays sortable and culture-free;
+    // the mockup shows it human-readable ("Jul 19, 2026"), so it is formatted
+    // at display time only. Falls back to the raw string if it will not parse.
+    private static string FormatDate(string isoDate)
+    {
+        if (System.DateTime.TryParse(
+                isoDate,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out System.DateTime parsed))
+        {
+            return parsed.ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        return isoDate;
     }
 
     private static void BuildCardText(Transform parent, string content, int fontSize, Color colour, bool bold = false)
@@ -315,6 +545,31 @@ public sealed class GalleryScreen : MonoBehaviour
         var layoutElement = textObject.AddComponent<LayoutElement>();
         layoutElement.preferredHeight = fontSize * 1.3f;
         layoutElement.flexibleWidth = 1f;
+    }
+
+    private static void AddBorder(RectTransform target, int cornerRadiusPixels, Color colour, int strokeWidth = 1)
+    {
+        var borderObject = new GameObject("Border");
+        var borderRect = borderObject.AddComponent<RectTransform>();
+        borderObject.transform.SetParent(target, false);
+        borderRect.anchorMin = Vector2.zero;
+        borderRect.anchorMax = Vector2.one;
+        borderRect.offsetMin = Vector2.zero;
+        borderRect.offsetMax = Vector2.zero;
+
+        var image = borderObject.AddComponent<Image>();
+        image.sprite = RoundedRectBorderSprite.Get(cornerRadiusPixels, strokeWidth);
+        image.type = Image.Type.Sliced;
+        image.color = colour;
+        image.raycastTarget = false;
+
+        // A border is a full-rect overlay, never a layout row. Without this,
+        // a parent VerticalLayoutGroup/HorizontalLayoutGroup treats it as a
+        // child and gives it a row of its own — Image implements
+        // ILayoutElement, so it reports the border sprite's native size —
+        // squeezing the real content. On the gallery card that pushed the
+        // date and score rows to zero height, making them invisible.
+        borderObject.AddComponent<LayoutElement>().ignoreLayout = true;
     }
 
     private CeramicDefinition ResolveDefinition(int tier)
@@ -342,7 +597,17 @@ public sealed class GalleryScreen : MonoBehaviour
         // caught via a rendered screenshot (see GalleryScreen's own
         // RefreshCards doc comment for the specific fix that was needed
         // alongside this reordering).
+        // HomeCanvas sorts at 25 and this one at 15, so Home renders on top
+        // of the gallery if it is still showing — which is exactly the
+        // "gallery opened invisibly behind Home and never received a tap"
+        // bug this screen was already caught by once. Home's own button
+        // hides itself before calling this, but Hide() below re-shows Home
+        // unconditionally, so leaving Show() dependent on the caller is an
+        // asymmetry waiting to bite again.
+        _homeScreen?.Hide();
+
         _panel.SetActive(true);
+        UiKit.PlayOverlayShow(_panel);
         RefreshCards();
         if (_inputHandler != null)
         {

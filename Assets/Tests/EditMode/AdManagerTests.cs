@@ -48,15 +48,20 @@ public class AdManagerTests
     }
 
     [Test]
-    public void RequestConsentIfRequired_ResolvesImmediatelyWithConservativeDefault()
+    // Consent now runs through Google's real User Messaging Platform, so
+    // the granted flag reflects whatever the SDK reports rather than the
+    // old stub's hardcoded "no". What still matters, and is asserted here,
+    // is that the callback always runs and consent always ends up resolved
+    // — InitializeSdk gates on that, so a consent flow that silently never
+    // completed would leave the game permanently ad-free.
+    public void RequestConsentIfRequired_AlwaysResolvesAndInvokesTheCallback()
     {
         bool resolved = false;
 
         _adManager.RequestConsentIfRequired(() => resolved = true);
 
-        Assert.IsTrue(resolved);
+        Assert.IsTrue(resolved, "the callback must run even when consent fails");
         Assert.IsTrue(_adManager.HasResolvedConsent);
-        Assert.IsFalse(_adManager.ConsentGrantedForPersonalizedAds, "no real CMP yet — default to the safe non-personalized stance");
     }
 
     [Test]

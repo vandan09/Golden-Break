@@ -84,3 +84,19 @@ crashlytics-build.properties
 
 # Claude Code session state, not project source
 /.claude/
+
+# Build, test and diagnostic artifacts produced during development.
+# These are regenerated on demand and were cluttering `git status` badly
+# enough that real changes were hard to see.
+/CeramicDump/
+/TestResults/
+/TestResults*.xml
+/test_results.xml
+/testresults.xml
+/glowtest.xml
+*.log
+/*.txt
+/*.png
+/screenshots/
+/pmtests.xml
+/tests.xml

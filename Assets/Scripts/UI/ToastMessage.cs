@@ -32,23 +32,20 @@ public sealed class ToastMessage : MonoBehaviour
 
     private void BuildUi(int sortingOrder)
     {
-        var canvasObject = new GameObject("ToastCanvas");
-        canvasObject.transform.SetParent(transform, false);
-        var canvas = canvasObject.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = sortingOrder;
-        canvasObject.AddComponent<CanvasScaler>();
-        canvasObject.AddComponent<GraphicRaycaster>();
+        Canvas canvas = ResponsiveCanvasSetup.BuildCanvas(transform, "ToastCanvas", sortingOrder);
+        RectTransform safeArea = ResponsiveCanvasSetup.BuildSafeArea(canvas.transform);
 
         _panel = new GameObject("Panel");
-        _panel.transform.SetParent(canvasObject.transform, false);
+        _panel.transform.SetParent(safeArea, false);
         var panelImage = _panel.AddComponent<Image>();
+        panelImage.sprite = RoundedRectSprite.Get(16);
+        panelImage.type = Image.Type.Sliced;
         panelImage.color = new Color(0f, 0f, 0f, 0.85f);
         var panelRect = _panel.GetComponent<RectTransform>();
         panelRect.anchorMin = new Vector2(0.5f, 0.12f);
         panelRect.anchorMax = new Vector2(0.5f, 0.12f);
         panelRect.pivot = new Vector2(0.5f, 0.5f);
-        panelRect.sizeDelta = new Vector2(440f, 70f);
+        panelRect.sizeDelta = new Vector2(280f, 50f);
 
         var textObject = new GameObject("Text");
         textObject.transform.SetParent(_panel.transform, false);

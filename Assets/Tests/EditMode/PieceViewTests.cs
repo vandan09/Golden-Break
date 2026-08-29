@@ -107,22 +107,27 @@ public class PieceViewTests
     }
 
     [Test]
-    public void SetPiece_ByColourId_AppliesThatColourIdsPatternedSprite()
+    public void SetPiece_ByColourId_AppliesThatColourIdsTint()
     {
         PieceDefinition single = MakePiece(new Vector2Int(0, 0));
 
         _pieceView.SetPiece(single, colourId: 1, blockScale: 1f);
 
-        Assert.AreEqual(UiPalette.GetBlockSprite(1), _pieceView.ActiveBlocks[0].sprite);
+        Assert.AreEqual(BlockCellSprite.GetRoundedBlock(), _pieceView.ActiveBlocks[0].sprite);
+        Assert.AreEqual(UiPalette.GetBlockColour(1), _pieceView.ActiveBlocks[0].color);
     }
 
     [Test]
-    public void SetPiece_ByRawColour_UsesFlatSpriteNotAPattern()
+    // Pieces are drawn as the design rounded block tinted to the piece
+    // colour, whichever overload set it — the pattern lives on grid cells.
+    public void SetPiece_ByRawColour_UsesTheRoundedBlockTintedToThatColour()
     {
         PieceDefinition single = MakePiece(new Vector2Int(0, 0));
+        var raw = new Color(1f, 0.25f, 0.25f, 0.5f);
 
-        _pieceView.SetPiece(single, new Color(1f, 0.25f, 0.25f, 0.5f), blockScale: 1f);
+        _pieceView.SetPiece(single, raw, blockScale: 1f);
 
-        Assert.AreEqual(PlaceholderSprite.GetSolid(Color.white), _pieceView.ActiveBlocks[0].sprite);
+        Assert.AreEqual(BlockCellSprite.GetRoundedBlock(), _pieceView.ActiveBlocks[0].sprite);
+        Assert.AreEqual(raw, _pieceView.ActiveBlocks[0].color);
     }
 }

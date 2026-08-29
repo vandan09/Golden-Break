@@ -135,8 +135,14 @@ public sealed class SaveManager : MonoBehaviour
             return;
         }
 
-        // Example for the next version bump:
-        // if (data.SaveVersion < 2) { /* upgrade v1 fields -> v2 shape */ }
+        // v1 saves predate undo/refresh being coin-gated and were created
+        // with Coins = 0, so without this an existing player would upgrade
+        // into two buttons they can never afford. Tops up rather than
+        // assigns, so anyone who had already earned coins keeps them.
+        if (data.SaveVersion < 2 && data.Coins < Constants.StartingCoins)
+        {
+            data.Coins = Constants.StartingCoins;
+        }
 
         data.SaveVersion = SaveData.CurrentSaveVersion;
     }

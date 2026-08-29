@@ -49,7 +49,47 @@ public sealed class CeramicController : MonoBehaviour
 
         _pieceController.OnLinesCleared += OnLinesCleared;
 
+        ReconcileProgressWithArtwork();
         RefreshView();
+    }
+
+    // A saved ceramic carries the crack total it was started with. When the
+    // artwork changes that count — as the move from 3 shared silhouettes to
+    // the design's 9 authored ones did, taking the vase from 3 cracks to 7 —
+    // an existing save would otherwise show a ceramic drawing 7 cracks while
+    // completing after 3, or report "5 of 3". Rather than resetting the
+    // player's progress, the total is adopted from the current artwork and
+    // the repaired count clamped into it, so a ceramic already finished
+    // under the old count stays finished and one mid-repair keeps its
+    // repaired cracks.
+    private void ReconcileProgressWithArtwork()
+    {
+        CeramicProgressData progress = _ceramicManager.Progress;
+        int definitionTier = CeramicTierResolver.ResolveDefinitionTier(progress.Tier);
+        CeramicDefinition definition = FindDefinitionForTier(definitionTier);
+
+        if (definition == null || definition.totalCracks <= 0)
+        {
+            return;
+        }
+
+        if (progress.TotalCracks == definition.totalCracks)
+        {
+            return;
+        }
+
+        bool wasComplete = progress.TotalCracks > 0 && progress.CracksRepaired >= progress.TotalCracks;
+
+        Debug.Log(
+            $"CeramicController: tier {progress.Tier} artwork now has {definition.totalCracks} cracks "
+            + $"(save had {progress.TotalCracks}) — reconciling progress.");
+
+        progress.TotalCracks = definition.totalCracks;
+        progress.CracksRepaired = wasComplete
+            ? definition.totalCracks
+            : Mathf.Clamp(progress.CracksRepaired, 0, definition.totalCracks);
+
+        Persist();
     }
 
     private void OnLinesCleared(LineClearDetector.ClearResult result, int pointsAwarded)

@@ -47,12 +47,12 @@ public sealed class PieceView : MonoBehaviour
     // glow").
     public void SetPiece(PieceDefinition piece, int colourId, float blockScale)
     {
-        SetPieceInternal(piece, UiPalette.GetBlockColour(colourId), UiPalette.GetBlockSprite(colourId), blockScale);
+        SetPieceInternal(piece, UiPalette.GetBlockColour(colourId), BlockCellSprite.GetRoundedBlock(), blockScale);
     }
 
     public void SetPiece(PieceDefinition piece, Color colour, float blockScale)
     {
-        SetPieceInternal(piece, colour, PlaceholderSprite.GetSolid(Color.white), blockScale);
+        SetPieceInternal(piece, colour, BlockCellSprite.GetRoundedBlock(), blockScale);
     }
 
     private void SetPieceInternal(PieceDefinition piece, Color colour, Sprite sprite, float blockScale)
@@ -113,7 +113,7 @@ public sealed class PieceView : MonoBehaviour
     {
         var blockObject = new GameObject("Block");
         var blockRenderer = blockObject.AddComponent<SpriteRenderer>();
-        blockRenderer.sprite = PlaceholderSprite.GetSolid(Color.white);
+        blockRenderer.sprite = BlockCellSprite.GetRoundedBlock();
         return blockRenderer;
     }
 }

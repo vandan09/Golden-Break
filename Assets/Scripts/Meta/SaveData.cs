@@ -10,7 +10,9 @@ using Newtonsoft.Json;
 [System.Serializable]
 public sealed class SaveData
 {
-    public const int CurrentSaveVersion = 1;
+    // v2 grants Constants.StartingCoins to saves written before undo and
+    // refresh were coin-gated (see SaveManager.Migrate).
+    public const int CurrentSaveVersion = 2;
 
     [JsonProperty("save_version")]
     public int SaveVersion;
@@ -122,7 +124,7 @@ public sealed class SaveData
             BestScore = 0,
             TotalGames = 0,
             TotalLinesCleared = 0,
-            Coins = 0,
+            Coins = Constants.StartingCoins,
             CurrentCeramic = CeramicProgressData.CreateFresh(),
             CeramicCumulativeScore = 0,
             Gallery = new List<GalleryEntryData>(),

@@ -40,7 +40,7 @@ public sealed class GameplayController : MonoBehaviour
     private const string GameplaySceneName = "Gameplay";
     private const float TrayVerticalGap = 1.5f;
     private const float CameraPaddingCells = 1.5f;
-    private const float CeramicVerticalGap = 0.6f;
+    private const float CeramicVerticalGap = 1.5f;
     private const float CeramicAreaHalfHeight = 1.3f;
 
     private bool _dailyChallengeSessionActive;
@@ -211,6 +211,7 @@ public sealed class GameplayController : MonoBehaviour
             ceramicControllerObject.transform.SetParent(regularRoot.transform, false);
             ceramicController = ceramicControllerObject.AddComponent<CeramicController>();
             ceramicController.Configure(pieceController, ceramicView, ceramicPool, ceramicManager, galleryManager, saveManager, coinManager);
+            hud.SetCeramicInfo(ceramicManager, ceramicPool);
 
             var galleryScreenObject = new GameObject("GalleryScreen");
             galleryScreen = galleryScreenObject.AddComponent<GalleryScreen>();
@@ -298,9 +299,6 @@ public sealed class GameplayController : MonoBehaviour
         var dailyGameOverScreen = dailyGameOverObject.AddComponent<DailyChallengeGameOverScreen>();
 
         dailyRoot.SetActive(false);
-
-        Debug.Log($"[DIAG] Awake complete: GridManager count={FindObjectsOfType<GridManager>().Length} PieceController count={FindObjectsOfType<PieceController>().Length} regularGrid={grid.GetInstanceID()} dailyGrid={dailyGrid.GetInstanceID()}");
-        Debug.Log($"[DIAG] Graphics: device={SystemInfo.graphicsDeviceType} name={SystemInfo.graphicsDeviceName} version={SystemInfo.graphicsDeviceVersion} shaderLevel={SystemInfo.graphicsShaderLevel} batching={SystemInfo.supportsInstancing}");
 
         // ---- Home / overlays ---------------------------------------------
         var settingsScreenObject = new GameObject("SettingsScreen");
@@ -436,6 +434,8 @@ public sealed class GameplayController : MonoBehaviour
         // perspective — configuring it to orthographic here at runtime
         // rather than depending on a scene file hand-edit.
         camera.orthographic = true;
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = UiPalette.Background;
 
         float gridExtent = GetGridHalfHeight();
         float trayAllowance = TrayVerticalGap + Constants.CellWorldSize;

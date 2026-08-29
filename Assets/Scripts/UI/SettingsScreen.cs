@@ -19,10 +19,23 @@ using UnityEngine.UI;
 /// </summary>
 public sealed class SettingsScreen : MonoBehaviour
 {
-    private const int TitleFontSize = 32;
-    private const int RowLabelFontSize = 24;
-    private const float RowHeight = 70f;
-    private const float RowSpacing = 20f;
+    private const int RowLabelFontSize = 16;
+    private const float RowHeight = 56f;
+    private const float RowSpacing = 10f;
+
+    // Rows hang off the shared header rather than a hardcoded offset that
+    // was tuned for the centred title this screen used to have.
+    private const float ContentTopGap = 24f;
+
+    // Extra breathing room before Remove Ads: it is an action, not another
+    // setting, and sitting it flush in the toggle stack read as a fifth row.
+    private const float ActionGap = 22f;
+
+    // Switch geometry. The knob is inset 3px from the track on both sides.
+    private const float TrackWidth = 52f;
+    private const float TrackHeight = 30f;
+    private const float KnobSize = 24f;
+    private const float KnobInset = 3f;
 
     private SaveManager _saveManager;
     private InputHandler _inputHandler;
@@ -60,16 +73,11 @@ public sealed class SettingsScreen : MonoBehaviour
 
     private void BuildUi()
     {
-        var canvasObject = new GameObject("SettingsCanvas");
-        canvasObject.transform.SetParent(transform, false);
-        var canvas = canvasObject.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 20; // above Gallery (15) — can be opened from Home or from Gallery
-        canvasObject.AddComponent<CanvasScaler>();
-        canvasObject.AddComponent<GraphicRaycaster>();
+        Canvas canvas = ResponsiveCanvasSetup.BuildCanvas(transform, "SettingsCanvas", 20);
+        RectTransform safeArea = ResponsiveCanvasSetup.BuildSafeArea(canvas.transform);
 
         _panel = new GameObject("Panel");
-        _panel.transform.SetParent(canvasObject.transform, false);
+        _panel.transform.SetParent(safeArea, false);
         var panelImage = _panel.AddComponent<Image>();
         panelImage.color = UiPalette.Background;
         var panelRect = _panel.GetComponent<RectTransform>();
@@ -78,8 +86,7 @@ public sealed class SettingsScreen : MonoBehaviour
         panelRect.offsetMin = Vector2.zero;
         panelRect.offsetMax = Vector2.zero;
 
-        BuildTitle(_panel.transform);
-        BuildCloseButton(_panel.transform);
+        UiKit.BuildBackHeader(_panel.transform, Strings.SettingsTitle, Hide);
 
         _soundToggle = BuildToggleRow(_panel.transform, Strings.SettingsSoundLabel, 0);
         _musicToggle = BuildToggleRow(_panel.transform, Strings.SettingsMusicLabel, 1);
@@ -95,94 +102,120 @@ public sealed class SettingsScreen : MonoBehaviour
         BuildCrossPromoCard(_panel.transform);
     }
 
-    private void BuildTitle(Transform parent)
-    {
-        var textObject = new GameObject("Title");
-        textObject.transform.SetParent(parent, false);
-        var text = textObject.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        text.fontSize = TitleFontSize;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.color = UiPalette.TextPrimary;
-        text.text = Strings.SettingsTitle;
-
-        var rect = textObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 1f);
-        rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -20f);
-        rect.sizeDelta = new Vector2(400f, 60f);
-    }
-
-    private void BuildCloseButton(Transform parent)
-    {
-        var buttonObject = new GameObject("CloseButton");
-        buttonObject.transform.SetParent(parent, false);
-        buttonObject.AddComponent<Image>().color = UiPalette.Surface;
-        buttonObject.AddComponent<Button>().onClick.AddListener(Hide);
-
-        var rect = buttonObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(1f, 1f);
-        rect.anchorMax = new Vector2(1f, 1f);
-        rect.pivot = new Vector2(1f, 1f);
-        rect.anchoredPosition = new Vector2(-20f, -20f);
-        rect.sizeDelta = new Vector2(60f, 50f);
-
-        BuildCenteredLabel(buttonObject.transform, Strings.CloseButtonSymbol, 24);
-    }
-
     private Toggle BuildToggleRow(Transform parent, string label, int rowIndex)
     {
         var rowObject = new GameObject($"Row_{label}");
         rowObject.transform.SetParent(parent, false);
-        var rowRect = rowObject.AddComponent<RectTransform>();
-        rowRect.anchorMin = new Vector2(0.1f, 1f);
-        rowRect.anchorMax = new Vector2(0.9f, 1f);
+        var rowBg = rowObject.AddComponent<Image>();
+        rowBg.sprite = RoundedRectSprite.Get(Mathf.RoundToInt(RowHeight * 0.5f));
+        rowBg.type = Image.Type.Sliced;
+        rowBg.color = UiPalette.Surface;
+
+        var rowRect = rowObject.GetComponent<RectTransform>();
+        rowRect.anchorMin = new Vector2(0.08f, 1f);
+        rowRect.anchorMax = new Vector2(0.92f, 1f);
         rowRect.pivot = new Vector2(0.5f, 1f);
-        rowRect.anchoredPosition = new Vector2(0f, -100f - (rowIndex * (RowHeight + RowSpacing)));
+        rowRect.anchoredPosition = new Vector2(0f, -RowTop(rowIndex));
         rowRect.sizeDelta = new Vector2(0f, RowHeight);
+
+        AddBorder(rowRect, Mathf.RoundToInt(RowHeight * 0.5f), UiPalette.CardBorder);
 
         var labelObject = new GameObject("Label");
         labelObject.transform.SetParent(rowObject.transform, false);
         var labelText = labelObject.AddComponent<Text>();
         labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         labelText.fontSize = RowLabelFontSize;
+        labelText.fontStyle = FontStyle.Bold;
         labelText.alignment = TextAnchor.MiddleLeft;
         labelText.color = UiPalette.TextPrimary;
         labelText.text = label;
         var labelRect = labelObject.GetComponent<RectTransform>();
         labelRect.anchorMin = new Vector2(0f, 0f);
-        labelRect.anchorMax = new Vector2(0.6f, 1f);
-        labelRect.offsetMin = Vector2.zero;
+        labelRect.anchorMax = new Vector2(0.7f, 1f);
+        labelRect.offsetMin = new Vector2(22, 0);
         labelRect.offsetMax = Vector2.zero;
 
+        return BuildSwitch(rowObject.transform);
+    }
+
+    // A real track-and-knob switch. This was previously a rounded rect
+    // that simply filled gold when on, with no knob and nothing that
+    // moved -- it read as a lit box rather than a switch, and gave no
+    // clue which side was "on".
+    private Toggle BuildSwitch(Transform parent)
+    {
         var toggleObject = new GameObject("Toggle");
-        toggleObject.transform.SetParent(rowObject.transform, false);
+        toggleObject.transform.SetParent(parent, false);
         var toggleRect = toggleObject.AddComponent<RectTransform>();
-        toggleRect.anchorMin = new Vector2(0.8f, 0.5f);
-        toggleRect.anchorMax = new Vector2(0.8f, 0.5f);
-        toggleRect.pivot = new Vector2(0.5f, 0.5f);
-        toggleRect.sizeDelta = new Vector2(50f, 50f);
+        toggleRect.anchorMin = new Vector2(1f, 0.5f);
+        toggleRect.anchorMax = new Vector2(1f, 0.5f);
+        toggleRect.pivot = new Vector2(1f, 0.5f);
+        toggleRect.anchoredPosition = new Vector2(-22f, 0f);
+        toggleRect.sizeDelta = new Vector2(TrackWidth, TrackHeight);
 
-        var background = toggleObject.AddComponent<Image>();
-        background.color = UiPalette.Surface;
+        int trackRadius = Mathf.RoundToInt(TrackHeight * 0.5f);
 
-        var checkmarkObject = new GameObject("Checkmark");
-        checkmarkObject.transform.SetParent(toggleObject.transform, false);
-        var checkmarkImage = checkmarkObject.AddComponent<Image>();
-        checkmarkImage.color = UiPalette.GoldFill;
-        var checkmarkRect = checkmarkObject.GetComponent<RectTransform>();
-        checkmarkRect.anchorMin = new Vector2(0.2f, 0.2f);
-        checkmarkRect.anchorMax = new Vector2(0.8f, 0.8f);
-        checkmarkRect.offsetMin = Vector2.zero;
-        checkmarkRect.offsetMax = Vector2.zero;
+        var track = toggleObject.AddComponent<Image>();
+        track.sprite = RoundedRectSprite.Get(trackRadius);
+        track.type = Image.Type.Sliced;
+        track.color = UiPalette.EmptyCellFill;
+
+        // The gold "on" state is a separate overlay so Toggle.graphic can
+        // cross-fade it, leaving the neutral track underneath for "off".
+        var onFillObject = new GameObject("OnFill");
+        onFillObject.transform.SetParent(toggleObject.transform, false);
+        var onFillRect = onFillObject.AddComponent<RectTransform>();
+        onFillRect.anchorMin = Vector2.zero;
+        onFillRect.anchorMax = Vector2.one;
+        onFillRect.offsetMin = Vector2.zero;
+        onFillRect.offsetMax = Vector2.zero;
+        var onFill = onFillObject.AddComponent<Image>();
+        onFill.sprite = RoundedRectSprite.Get(trackRadius);
+        onFill.type = Image.Type.Sliced;
+        onFill.color = UiPalette.GoldFill;
+
+        var knobObject = new GameObject("Knob");
+        knobObject.transform.SetParent(toggleObject.transform, false);
+        var knobRect = knobObject.AddComponent<RectTransform>();
+        knobRect.anchorMin = new Vector2(0.5f, 0.5f);
+        knobRect.anchorMax = new Vector2(0.5f, 0.5f);
+        knobRect.pivot = new Vector2(0.5f, 0.5f);
+        knobRect.sizeDelta = new Vector2(KnobSize, KnobSize);
+        var knob = knobObject.AddComponent<Image>();
+        knob.sprite = RoundedRectSprite.Get(Mathf.RoundToInt(KnobSize * 0.5f));
+        knob.type = Image.Type.Sliced;
+        knob.color = UiPalette.Background;
+        knob.raycastTarget = false;
 
         var toggle = toggleObject.AddComponent<Toggle>();
-        toggle.targetGraphic = background;
-        toggle.graphic = checkmarkImage;
+        toggle.targetGraphic = track;
+        toggle.graphic = onFill;
         toggle.isOn = true;
 
+        toggle.onValueChanged.AddListener(_ => SyncSwitchVisual(toggle));
+        SyncSwitchVisual(toggle);
+
         return toggle;
+    }
+
+    // Also called after SetIsOnWithoutNotify in Show(), which by design
+    // does not fire onValueChanged and would otherwise leave the knob
+    // parked on the wrong side of the track.
+    private static void SyncSwitchVisual(Toggle toggle)
+    {
+        Transform knob = toggle.transform.Find("Knob");
+        if (knob == null)
+        {
+            return;
+        }
+
+        float travel = (TrackWidth * 0.5f) - (KnobSize * 0.5f) - KnobInset;
+        ((RectTransform)knob).anchoredPosition = new Vector2(toggle.isOn ? travel : -travel, 0f);
+    }
+
+    private static float RowTop(int rowIndex)
+    {
+        return UiKit.TopPadding + UiKit.HeaderHeight + ContentTopGap + (rowIndex * (RowHeight + RowSpacing));
     }
 
     // CLAUDE.md §5.2: "Remove interstitials | ₹249 / $2.99." The one IAP
@@ -193,21 +226,19 @@ public sealed class SettingsScreen : MonoBehaviour
     // new screen file for it.
     private void BuildRemoveAdsButton(Transform parent, int rowIndex)
     {
-        var rowObject = new GameObject("Row_RemoveAds");
-        rowObject.transform.SetParent(parent, false);
-        rowObject.AddComponent<Image>().color = UiPalette.Surface;
-        var button = rowObject.AddComponent<Button>();
-        button.onClick.AddListener(OnRemoveAdsClicked);
+        Button button = UiKit.BuildButton(parent, "Row_RemoveAds", Strings.SettingsRemoveAdsLabel, OnRemoveAdsClicked, UiKit.ButtonStyle.Primary, RowHeight);
 
-        var rowRect = rowObject.GetComponent<RectTransform>();
-        rowRect.anchorMin = new Vector2(0.1f, 1f);
-        rowRect.anchorMax = new Vector2(0.9f, 1f);
+        var rowRect = button.GetComponent<RectTransform>();
+        rowRect.anchorMin = new Vector2(0.08f, 1f);
+        rowRect.anchorMax = new Vector2(0.92f, 1f);
         rowRect.pivot = new Vector2(0.5f, 1f);
-        rowRect.anchoredPosition = new Vector2(0f, -100f - (rowIndex * (RowHeight + RowSpacing)));
+        rowRect.anchoredPosition = new Vector2(0f, -(RowTop(rowIndex) + ActionGap));
         rowRect.sizeDelta = new Vector2(0f, RowHeight);
 
-        _removeAdsButton = rowObject;
-        _removeAdsButtonLabel = BuildCenteredLabel(rowObject.transform, Strings.SettingsRemoveAdsLabel, RowLabelFontSize);
+        UiKit.AddPrimaryGlow(button, RowHeight);
+
+        _removeAdsButton = button.gameObject;
+        _removeAdsButtonLabel = UiKit.GetLabel(button);
     }
 
     private void OnRemoveAdsClicked()
@@ -240,40 +271,39 @@ public sealed class SettingsScreen : MonoBehaviour
 
     private void BuildCrossPromoCard(Transform parent)
     {
-        var cardObject = new GameObject("CrossPromoCard");
-        cardObject.transform.SetParent(parent, false);
-        cardObject.AddComponent<Image>().color = UiPalette.Surface;
-        var button = cardObject.AddComponent<Button>();
-        button.onClick.AddListener(OnCrossPromoClicked);
+        Button button = UiKit.BuildButton(parent, "CrossPromoCard", Strings.SettingsCrossPromoLabel, OnCrossPromoClicked, UiKit.ButtonStyle.Secondary, UiKit.SecondaryButtonHeight);
 
-        var rect = cardObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.1f, 0f);
-        rect.anchorMax = new Vector2(0.9f, 0f);
+        var rect = button.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.08f, 0f);
+        rect.anchorMax = new Vector2(0.92f, 0f);
         rect.pivot = new Vector2(0.5f, 0f);
-        rect.anchoredPosition = new Vector2(0f, 40f);
-        rect.sizeDelta = new Vector2(0f, 90f);
-
-        BuildCenteredLabel(cardObject.transform, Strings.SettingsCrossPromoLabel, 20);
+        rect.anchoredPosition = new Vector2(0f, 30f);
+        rect.sizeDelta = new Vector2(0f, UiKit.SecondaryButtonHeight);
     }
 
-    private static Text BuildCenteredLabel(Transform parent, string content, int fontSize)
+    private static void AddBorder(RectTransform target, int cornerRadiusPixels, Color colour, int strokeWidth = 1)
     {
-        var textObject = new GameObject("Label");
-        textObject.transform.SetParent(parent, false);
-        var text = textObject.AddComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        text.fontSize = fontSize;
-        text.alignment = TextAnchor.MiddleCenter;
-        text.color = UiPalette.TextPrimary;
-        text.text = content;
+        var borderObject = new GameObject("Border");
+        var borderRect = borderObject.AddComponent<RectTransform>();
+        borderObject.transform.SetParent(target, false);
+        borderRect.anchorMin = Vector2.zero;
+        borderRect.anchorMax = Vector2.one;
+        borderRect.offsetMin = Vector2.zero;
+        borderRect.offsetMax = Vector2.zero;
 
-        var rect = textObject.GetComponent<RectTransform>();
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
+        var image = borderObject.AddComponent<Image>();
+        image.sprite = RoundedRectBorderSprite.Get(cornerRadiusPixels, strokeWidth);
+        image.type = Image.Type.Sliced;
+        image.color = colour;
+        image.raycastTarget = false;
 
-        return text;
+        // A border is a full-rect overlay, never a layout row. Without this,
+        // a parent VerticalLayoutGroup/HorizontalLayoutGroup treats it as a
+        // child and gives it a row of its own — Image implements
+        // ILayoutElement, so it reports the border sprite's native size —
+        // squeezing the real content. On the gallery card that pushed the
+        // date and score rows to zero height, making them invisible.
+        borderObject.AddComponent<LayoutElement>().ignoreLayout = true;
     }
 
     private void OnSoundChanged(bool value)
@@ -325,9 +355,16 @@ public sealed class SettingsScreen : MonoBehaviour
         _musicToggle.SetIsOnWithoutNotify(settings.Music);
         _hapticsToggle.SetIsOnWithoutNotify(settings.Haptics);
         _highContrastToggle.SetIsOnWithoutNotify(settings.HighContrast);
+
+        SyncSwitchVisual(_soundToggle);
+        SyncSwitchVisual(_musicToggle);
+        SyncSwitchVisual(_hapticsToggle);
+        SyncSwitchVisual(_highContrastToggle);
+
         RefreshRemoveAdsButton();
 
         _panel.SetActive(true);
+        UiKit.PlayOverlayShow(_panel);
         if (_inputHandler != null)
         {
             _inputHandler.InputEnabled = false;

@@ -13,15 +13,17 @@ public class UiPaletteTests
     }
 
     [Test]
-    public void GetBlockSprite_NegativeColourId_ReturnsFlatPlaceholderSprite()
+    // Negative ids (obstacles) get the design rounded block, not a flat
+    // square — the Claude Design rework replaced the placeholder sprite.
+    public void GetBlockSprite_NegativeColourId_ReturnsTheRoundedBlock()
     {
-        Assert.AreEqual(PlaceholderSprite.GetSolid(Color.white), UiPalette.GetBlockSprite(-1));
+        Assert.AreEqual(BlockCellSprite.GetRoundedBlock(), UiPalette.GetBlockSprite(-1));
     }
 
     [Test]
-    public void GetBlockSprite_ObstacleColourId_ReturnsFlatPlaceholderSprite()
+    public void GetBlockSprite_ObstacleColourId_ReturnsTheRoundedBlock()
     {
-        Assert.AreEqual(PlaceholderSprite.GetSolid(Color.white), UiPalette.GetBlockSprite(Constants.ObstacleColourId));
+        Assert.AreEqual(BlockCellSprite.GetRoundedBlock(), UiPalette.GetBlockSprite(Constants.ObstacleColourId));
     }
 
     [Test]

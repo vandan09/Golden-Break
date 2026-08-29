@@ -19,7 +19,8 @@ public sealed class DailyChallengeGameOverScreen : MonoBehaviour
     private const int NewBestFontSize = 20;
     private const int CoinsEarnedFontSize = 18;
     private const int PerfectRunFontSize = 18;
-    private const int ButtonLabelFontSize = 22;
+    private const float ButtonWidth = 280f;
+    private const float ButtonHeight = 56f;
 
     private PieceController _pieceController;
     private DailyChallengeSaveTriggers _saveTriggers;
@@ -64,16 +65,11 @@ public sealed class DailyChallengeGameOverScreen : MonoBehaviour
 
     private void BuildUi()
     {
-        var canvasObject = new GameObject("DailyChallengeGameOverCanvas");
-        canvasObject.transform.SetParent(transform, false);
-        var canvas = canvasObject.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 10;
-        canvasObject.AddComponent<CanvasScaler>();
-        canvasObject.AddComponent<GraphicRaycaster>();
+        Canvas canvas = ResponsiveCanvasSetup.BuildCanvas(transform, "DailyChallengeGameOverCanvas", 10);
+        RectTransform safeArea = ResponsiveCanvasSetup.BuildSafeArea(canvas.transform);
 
         _panel = new GameObject("Panel");
-        _panel.transform.SetParent(canvasObject.transform, false);
+        _panel.transform.SetParent(safeArea, false);
         var panelImage = _panel.AddComponent<Image>();
         panelImage.color = new Color(UiPalette.Background.r, UiPalette.Background.g, UiPalette.Background.b, 0.92f);
         var panelRect = _panel.GetComponent<RectTransform>();
@@ -89,8 +85,8 @@ public sealed class DailyChallengeGameOverScreen : MonoBehaviour
         _coinsEarnedText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.47f), CoinsEarnedFontSize, UiPalette.GoldFill);
         _perfectRunText = CreateText(_panel.transform, Strings.DailyChallengePerfectRunLabel, new Vector2(0.5f, 0.41f), PerfectRunFontSize, UiPalette.GoldFill);
 
-        BuildButton(_panel.transform, Strings.GameOverPlayAgainButton, new Vector2(0.5f, 0.30f), OnPlayAgainClicked);
-        BuildButton(_panel.transform, Strings.DailyChallengeCloseButton, new Vector2(0.5f, 0.20f), OnCloseClicked);
+        BuildButton(Strings.GameOverPlayAgainButton, new Vector2(0.5f, 0.30f), OnPlayAgainClicked, UiKit.ButtonStyle.Primary);
+        BuildButton(Strings.DailyChallengeCloseButton, new Vector2(0.5f, 0.20f), OnCloseClicked, UiKit.ButtonStyle.Secondary);
     }
 
     private static Text CreateText(Transform parent, string initialText, Vector2 anchor, int fontSize, Color colour)
@@ -115,26 +111,15 @@ public sealed class DailyChallengeGameOverScreen : MonoBehaviour
         return text;
     }
 
-    private static void BuildButton(Transform parent, string label, Vector2 anchor, UnityEngine.Events.UnityAction onClick)
+    private void BuildButton(string label, Vector2 anchor, UnityEngine.Events.UnityAction onClick, UiKit.ButtonStyle style)
     {
-        var buttonObject = new GameObject($"{label}Button");
-        buttonObject.transform.SetParent(parent, false);
-        buttonObject.AddComponent<Image>().color = UiPalette.Surface;
-        buttonObject.AddComponent<Button>().onClick.AddListener(onClick);
+        Button button = UiKit.BuildButton(_panel.transform, $"{label}Button", label, onClick, style, ButtonHeight);
+        UiKit.AnchorCentred(button.GetComponent<RectTransform>(), anchor, ButtonWidth, ButtonHeight);
 
-        var rect = buttonObject.GetComponent<RectTransform>();
-        rect.anchorMin = anchor;
-        rect.anchorMax = anchor;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(320f, 64f);
-
-        Text buttonLabel = CreateText(buttonObject.transform, label, Vector2.zero, ButtonLabelFontSize, UiPalette.TextPrimary);
-        var labelRect = buttonLabel.GetComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = Vector2.zero;
-        labelRect.offsetMax = Vector2.zero;
+        if (style == UiKit.ButtonStyle.Primary)
+        {
+            UiKit.AddPrimaryGlow(button, ButtonHeight);
+        }
     }
 
     private void Show()
@@ -157,6 +142,7 @@ public sealed class DailyChallengeGameOverScreen : MonoBehaviour
         _perfectRunText.gameObject.SetActive(_medallionController != null && _medallionController.CompletedThisAttempt);
 
         _panel.SetActive(true);
+        UiKit.PlayOverlayShow(_panel);
     }
 
     private void OnPlayAgainClicked()

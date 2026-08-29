@@ -74,6 +74,70 @@ public class ScreenVerificationSmokeTests
 
         yield return Snapshot.Capture(canvas, "gallery_playmode_snapshot.png");
     }
+
+    // DEV ONLY view — the catalogue of every ceramic and colour variant,
+    // reached by five taps on the Gallery title. Verified here because it
+    // is the only way to see all 21 without playing to tier 21, and a
+    // hidden gesture is exactly the kind of thing that rots unnoticed.
+    [UnityTest]
+    public IEnumerator GalleryScreen_DevPreview_RendersEveryCeramicAndVariant()
+    {
+        yield return SceneManager.LoadSceneAsync("Gameplay", LoadSceneMode.Single);
+        yield return null;
+        yield return null;
+
+        var galleryScreen = Object.FindObjectOfType<GalleryScreen>();
+        Assert.IsNotNull(galleryScreen);
+
+        galleryScreen.Show();
+        yield return null;
+
+        Transform toggle = galleryScreen.transform.Find(
+            "GalleryCanvas/Panel/SafeArea/Header/DevPreviewToggle");
+        Assert.IsNotNull(toggle, "dev preview is reached from a toggle in the header");
+
+        var toggleButton = toggle.GetComponent<UnityEngine.UI.Button>();
+        Assert.IsNotNull(toggleButton);
+
+        // Raycast at the toggle's own screen position rather than calling
+        // onClick directly. Invoking the handler proves the cards build but
+        // NOT that a tap ever reaches the button — which is exactly how the
+        // previous hidden gesture shipped broken: the header behind it also
+        // carries a Button, so a click landing on the wrong graphic closes
+        // the screen instead of toggling.
+        var toggleRect = (RectTransform)toggle;
+        Vector2 screenPoint = RectTransformUtility.WorldToScreenPoint(null, toggleRect.position);
+
+        var pointer = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current)
+        {
+            position = screenPoint,
+        };
+
+        var hits = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
+        UnityEngine.EventSystems.EventSystem.current.RaycastAll(pointer, hits);
+
+        Assert.Greater(hits.Count, 0, "a tap on the toggle must hit something");
+        Assert.AreEqual(
+            toggle.gameObject,
+            hits[0].gameObject,
+            "the toggle must be the topmost hit — otherwise the tap goes to the header behind it");
+
+        UnityEngine.EventSystems.ExecuteEvents.ExecuteHierarchy(
+            hits[0].gameObject, pointer, UnityEngine.EventSystems.ExecuteEvents.pointerClickHandler);
+
+        yield return null;
+
+        Transform content = galleryScreen.transform.Find(
+            "GalleryCanvas/Panel/SafeArea/ScrollView/Viewport/Content");
+        Assert.IsNotNull(content, "card grid");
+
+        // 9 tiers in the base metal, plus tiers 6-9 in each further metal.
+        int expected = 9 + ((CeramicGold.VariantCount - 1) * 4);
+        Assert.AreEqual(expected, content.childCount, "every ceramic and variant should have a card");
+
+        Canvas canvas = galleryScreen.GetComponentInChildren<Canvas>(includeInactive: true);
+        yield return Snapshot.Capture(canvas, "gallery_dev_preview_snapshot.png");
+    }
 }
 
 internal static class Snapshot

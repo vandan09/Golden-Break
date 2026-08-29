@@ -35,7 +35,7 @@ public class SaveManagerTests
 
         Assert.AreEqual(SaveData.CurrentSaveVersion, data.SaveVersion);
         Assert.AreEqual(0, data.BestScore);
-        Assert.AreEqual(0, data.Coins);
+        Assert.AreEqual(Constants.StartingCoins, data.Coins, "a fresh save is seeded so undo/refresh aren't dead on first run");
         Assert.IsNotNull(data.CurrentCeramic);
         Assert.AreEqual(1, data.CurrentCeramic.Tier);
         Assert.AreEqual(4, data.CurrentCeramic.TotalCracks);
@@ -118,6 +118,36 @@ public class SaveManagerTests
 
         Assert.AreEqual(SaveData.CurrentSaveVersion, loaded.SaveVersion);
         Assert.AreEqual(100, loaded.BestScore, "migration should not disturb existing field values");
+    }
+
+    [Test]
+    public void LoadFrom_V1SaveWithNoCoins_IsGrantedStartingCoins()
+    {
+        var persistence = new FakeSavePersistence();
+        SaveData original = SaveData.CreateFresh("2026-08-17");
+        original.SaveVersion = 1;
+        original.Coins = 0;
+        persistence.Seed(JsonConvert.SerializeObject(original));
+
+        SaveData loaded = SaveManager.LoadFrom(persistence);
+
+        Assert.AreEqual(Constants.StartingCoins, loaded.Coins,
+            "a v1 save predates undo/refresh being coin-gated, so it must not upgrade into two unaffordable buttons");
+    }
+
+    [Test]
+    public void LoadFrom_V1SaveWithEarnedCoins_KeepsTheLargerBalance()
+    {
+        var persistence = new FakeSavePersistence();
+        SaveData original = SaveData.CreateFresh("2026-08-17");
+        original.SaveVersion = 1;
+        original.Coins = Constants.StartingCoins + 500;
+        persistence.Seed(JsonConvert.SerializeObject(original));
+
+        SaveData loaded = SaveManager.LoadFrom(persistence);
+
+        Assert.AreEqual(Constants.StartingCoins + 500, loaded.Coins,
+            "the grant tops up, it must never overwrite coins the player already earned");
     }
 
     [Test]

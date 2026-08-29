@@ -104,8 +104,16 @@ public class GridManagerTests
         _gridManager.Board.Place(piece, 3, 3, colourId: 0);
         _gridManager.RefreshCell(3, 3);
 
-        SpriteRenderer cellRenderer = _gridManager.transform.Find("Cell_3_3").GetComponent<SpriteRenderer>();
-        Assert.AreEqual(UiPalette.GetBlockColour(0), cellRenderer.color);
+        // Fill overlay is a child of the cell object — a fresh pooled
+        // renderer, not the background renderer whose sprite/colour are
+        // never mutated (see GridManager's own doc for why).
+        SpriteRenderer fillRenderer = _gridManager.transform.Find("Cell_3_3").GetComponentInChildren<SpriteRenderer>(true);
+        // GetComponentInChildren returns the background first if no child
+        // exists; for a filled cell, the fill overlay is the deepest child.
+        Transform cell = _gridManager.transform.Find("Cell_3_3");
+        Assert.IsTrue(cell.childCount > 0, "Filled cell should have a fill overlay child");
+        SpriteRenderer overlay = cell.GetChild(0).GetComponent<SpriteRenderer>();
+        Assert.AreEqual(UiPalette.GetBlockColour(0), overlay.color);
     }
 
     // Regression guard for colourId 0 specifically (the first/coral
@@ -124,18 +132,23 @@ public class GridManagerTests
         _gridManager.Board.Place(piece, 2, 2, colourId: 0);
         _gridManager.RefreshCell(2, 2);
 
-        SpriteRenderer cellRenderer = _gridManager.transform.Find("Cell_2_2").GetComponent<SpriteRenderer>();
-        Assert.AreEqual(UiPalette.GetBlockColour(0), cellRenderer.color);
-        Assert.AreEqual(UiPalette.GetBlockSprite(0), cellRenderer.sprite);
-        Assert.AreNotEqual(PlaceholderSprite.GetSolid(Color.white), cellRenderer.sprite, "colourId 0 must not render as the flat placeholder used for empty cells");
+        Transform cell = _gridManager.transform.Find("Cell_2_2");
+        Assert.IsTrue(cell.childCount > 0, "Filled cell should have a fill overlay child");
+        SpriteRenderer overlay = cell.GetChild(0).GetComponent<SpriteRenderer>();
+        Assert.AreEqual(UiPalette.GetBlockColour(0), overlay.color);
+        Assert.AreEqual(UiPalette.GetFilledCellSprite(0), overlay.sprite);
+        Assert.AreNotEqual(BlockCellSprite.GetEmptyCell(), overlay.sprite, "colourId 0 must not render as the empty-cell sprite");
     }
 
     [Test]
-    public void RefreshCell_EmptyCell_RendersEmptyCellFillColour()
+    // The empty-cell fill and border are baked into the sprite now (the
+    // design draws a rounded cell with a 1px border), so the renderer tint
+    // is left white rather than carrying the fill colour itself.
+    public void RefreshCell_EmptyCell_LeavesTheSpriteUntinted()
     {
         SpriteRenderer cellRenderer = _gridManager.transform.Find("Cell_5_5").GetComponent<SpriteRenderer>();
 
-        Assert.AreEqual(UiPalette.EmptyCellFill, cellRenderer.color);
+        Assert.AreEqual(Color.white, cellRenderer.color);
     }
 
     [Test]
@@ -148,15 +161,17 @@ public class GridManagerTests
         _gridManager.Board.Place(piece, 4, 4, colourId: 2);
         _gridManager.RefreshCell(4, 4);
 
-        SpriteRenderer cellRenderer = _gridManager.transform.Find("Cell_4_4").GetComponent<SpriteRenderer>();
-        Assert.AreEqual(UiPalette.GetBlockSprite(2), cellRenderer.sprite);
+        Transform cell = _gridManager.transform.Find("Cell_4_4");
+        Assert.IsTrue(cell.childCount > 0, "Filled cell should have a fill overlay child");
+        SpriteRenderer overlay = cell.GetChild(0).GetComponent<SpriteRenderer>();
+        Assert.AreEqual(UiPalette.GetFilledCellSprite(2), overlay.sprite);
     }
 
     [Test]
-    public void RefreshCell_EmptyCell_UsesTheFlatPlaceholderSprite()
+    public void RefreshCell_EmptyCell_UsesTheDesignEmptyCellSprite()
     {
         SpriteRenderer cellRenderer = _gridManager.transform.Find("Cell_6_6").GetComponent<SpriteRenderer>();
 
-        Assert.AreEqual(PlaceholderSprite.GetSolid(Color.white), cellRenderer.sprite);
+        Assert.AreEqual(BlockCellSprite.GetEmptyCell(), cellRenderer.sprite);
     }
 }

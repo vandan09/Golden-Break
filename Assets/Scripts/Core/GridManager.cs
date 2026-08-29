@@ -3,21 +3,28 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Renders the 8×8 board (CLAUDE.md §7.5): 64 SpriteRenderers created once
-/// in <see cref="Awake"/> and never instantiated/destroyed again — only
-/// their colour/scale mutate. Owns the live <see cref="BoardState"/> and
-/// exposes cell↔world conversions for drag/ghost/snap logic.
+/// Renders the 8×8 board (CLAUDE.md §7.5). Background layer: 64 permanent
+/// <see cref="SpriteRenderer"/>s that always show empty-cell colour and
+/// are NEVER mutated after creation. Fill layer: pooled renderers placed on
+/// top of a background cell when it becomes filled, returned to the pool
+/// when it clears — matching <see cref="PieceView"/>'s proven-working
+/// pattern of using fresh renderers for each state change instead of
+/// mutating an existing renderer's sprite/colour, which silently fails to
+/// refresh on Android's GLES/IL2CPP runtime (see PROGRESS.md OPEN BUG).
 /// </summary>
 public sealed class GridManager : MonoBehaviour
 {
-    // Flash overlays sit between the grid (z=0) and the drag/ghost pieces
-    // (z=-0.5/-1, see PieceController) so a flash never occludes the piece
-    // the player is actively looking at.
+    // Fill overlays sit just in front of the background (z=0) but behind
+    // flash overlays and the drag/ghost pieces (z=-0.5/-1, see
+    // PieceController) so visual layering is correct at all times.
+    private const float FillZOffset = -0.05f;
     private const float FlashZOffset = -0.2f;
 
-    private readonly SpriteRenderer[] _cellRenderers = new SpriteRenderer[Constants.GridSize * Constants.GridSize];
+    private readonly SpriteRenderer[] _bgRenderers = new SpriteRenderer[Constants.GridSize * Constants.GridSize];
+    private readonly SpriteRenderer[] _fillRenderers = new SpriteRenderer[Constants.GridSize * Constants.GridSize];
 
     private BoardState _board;
+    private ObjectPool<SpriteRenderer> _fillPool;
     private ObjectPool<SpriteRenderer> _flashPool;
 
     public BoardState Board => _board;
@@ -34,75 +41,110 @@ public sealed class GridManager : MonoBehaviour
     {
         _board = new BoardState();
 
-        for (int y = 0; y < Constants.GridSize; y++)
+        if (_fillPool == null)
         {
-            for (int x = 0; x < Constants.GridSize; x++)
-            {
-                var cellObject = new GameObject($"Cell_{x}_{y}");
-                cellObject.transform.SetParent(transform, false);
-                cellObject.transform.localPosition = CellToLocalPosition(x, y);
-                cellObject.transform.localScale = Vector3.one * (Constants.CellWorldSize - Constants.CellGap);
-
-                var cellRenderer = cellObject.AddComponent<SpriteRenderer>();
-                cellRenderer.sprite = PlaceholderSprite.GetSolid(Color.white);
-                _cellRenderers[Index(x, y)] = cellRenderer;
-            }
+            _fillPool = new ObjectPool<SpriteRenderer>(
+                factory: () => CreatePooledRenderer("FillBlock"),
+                onGet: r => r.gameObject.SetActive(true),
+                onReturn: r => r.gameObject.SetActive(false));
         }
 
         if (_flashPool == null)
         {
             _flashPool = new ObjectPool<SpriteRenderer>(
-                factory: CreateFlashRenderer,
+                factory: () => CreatePooledRenderer("ClearFlash"),
                 onGet: r => r.gameObject.SetActive(true),
                 onReturn: r => r.gameObject.SetActive(false));
+        }
+
+        for (int y = 0; y < Constants.GridSize; y++)
+        {
+            for (int x = 0; x < Constants.GridSize; x++)
+            {
+                int idx = Index(x, y);
+
+                var cellObject = new GameObject($"Cell_{x}_{y}");
+                cellObject.transform.SetParent(transform, false);
+                cellObject.transform.localPosition = CellToLocalPosition(x, y);
+                cellObject.transform.localScale = Vector3.one * (Constants.CellWorldSize - Constants.CellGap);
+
+                var bgRenderer = cellObject.AddComponent<SpriteRenderer>();
+                bgRenderer.sprite = BlockCellSprite.GetEmptyCell();
+                bgRenderer.color = Color.white;
+
+                _bgRenderers[idx] = bgRenderer;
+                _fillRenderers[idx] = null;
+            }
         }
 
         RefreshAllCells();
     }
 
-    // CLAUDE.md §3.8: cleared cells "flash white (100ms), then dissolve".
-    // Simplified from the spec's literal particle-dissolve to a fading
-    // white overlay — no final particle art exists yet (Phase 5/8), and
-    // this conveys the same beat (flash, then fade away) without a full
-    // ParticleSystem. The underlying cell colour is already updated to
-    // empty by the time this plays (RefreshCell already ran) — this is a
-    // pure visual overlay on top, not a delay of the logical clear.
     public void PlayClearFlash(IEnumerable<Vector2Int> cells)
     {
+        Color goldGlow = new Color(0.94f, 0.85f, 0.56f, 0.5f);
+
         foreach (Vector2Int cell in cells)
         {
+            int idx = Index(cell.x, cell.y);
+            Transform cellTransform = _bgRenderers[idx].transform;
+
             SpriteRenderer flash = _flashPool.Get();
-            Vector3 localPos = CellToLocalPosition(cell.x, cell.y);
-            flash.transform.localPosition = new Vector3(localPos.x, localPos.y, FlashZOffset);
-            flash.transform.localScale = Vector3.one * (Constants.CellWorldSize - Constants.CellGap);
-            flash.color = Color.white;
+            flash.transform.SetParent(cellTransform, false);
+            flash.transform.localPosition = new Vector3(0f, 0f, FlashZOffset);
+            flash.transform.localScale = Vector3.one;
+            flash.sprite = PlaceholderSprite.GetSolid(Color.white);
+            flash.color = goldGlow;
 
             SpriteRenderer capturedFlash = flash;
 
-            // DOTween.ToAlpha directly, not the SpriteRenderer.DOFade
-            // extension from DOTweenModuleSprite.cs — that module's
-            // extension methods aren't visible from this assembly (a
-            // Plugins-folder script outside any asmdef; other DOTween
-            // core calls like DOTween.Sequence() work fine, only the
-            // Modules/-specific extension methods don't resolve). Calling
-            // the same underlying core API DOFade wraps internally
-            // sidesteps the issue entirely rather than chasing Unity's
-            // assembly resolution further.
-            Tween fade = DOTween.ToAlpha(() => capturedFlash.color, c => capturedFlash.color = c, 0f, Constants.ClearFadeDurationSeconds);
             DOTween.Sequence()
-                .AppendInterval(Constants.ClearFlashDurationSeconds)
-                .Append(fade)
-                .OnComplete(() => _flashPool.Return(capturedFlash));
+                .Append(cellTransform.DOScale(
+                    Vector3.one * (Constants.CellWorldSize - Constants.CellGap) * 0.85f,
+                    Constants.ClearFlashDurationSeconds).SetEase(Ease.OutQuad))
+                .Join(DOTween.ToAlpha(
+                    () => capturedFlash.color, c => capturedFlash.color = c,
+                    0f, Constants.ClearFadeDurationSeconds))
+                .OnComplete(() =>
+                {
+                    _flashPool.Return(capturedFlash);
+                    cellTransform.localScale = Vector3.one * (Constants.CellWorldSize - Constants.CellGap);
+                });
+
+            SpawnGoldParticle(cellTransform.position);
         }
     }
 
-    private SpriteRenderer CreateFlashRenderer()
+    private void SpawnGoldParticle(Vector3 worldPosition)
     {
-        var flashObject = new GameObject("ClearFlash");
-        flashObject.transform.SetParent(transform, false);
-        var flashRenderer = flashObject.AddComponent<SpriteRenderer>();
-        flashRenderer.sprite = PlaceholderSprite.GetSolid(Color.white);
-        return flashRenderer;
+        var particleObj = new GameObject("GoldParticle");
+        particleObj.transform.SetParent(transform, false);
+        particleObj.transform.position = worldPosition;
+        particleObj.transform.localScale = Vector3.one * 0.08f;
+
+        var sr = particleObj.AddComponent<SpriteRenderer>();
+        sr.sprite = PlaceholderSprite.GetSolid(Color.white);
+        sr.color = new Color(0.94f, 0.85f, 0.56f, 0.9f);
+        sr.sortingOrder = 5;
+
+        float riseHeight = 0.6f + Random.Range(0f, 0.3f);
+        float drift = Random.Range(-0.15f, 0.15f);
+        float duration = 0.8f + Random.Range(0f, 0.4f);
+
+        DOTween.Sequence()
+            .Append(particleObj.transform.DOMove(
+                worldPosition + new Vector3(drift, riseHeight, 0f), duration).SetEase(Ease.OutQuad))
+            .Join(particleObj.transform.DOScale(Vector3.one * 0.03f, duration))
+            .Join(DOTween.ToAlpha(() => sr.color, c => sr.color = c, 0f, duration))
+            .OnComplete(() => Object.Destroy(particleObj));
+    }
+
+    private SpriteRenderer CreatePooledRenderer(string name)
+    {
+        var obj = new GameObject(name);
+        var renderer = obj.AddComponent<SpriteRenderer>();
+        obj.SetActive(false);
+        return renderer;
     }
 
     public void RefreshAllCells()
@@ -118,34 +160,42 @@ public sealed class GridManager : MonoBehaviour
 
     public void RefreshCell(int x, int y)
     {
-        SpriteRenderer cellRenderer = _cellRenderers[Index(x, y)];
+        int idx = Index(x, y);
         bool filled = _board.IsFilled(x, y);
 
         if (filled)
         {
             int colourId = _board.GetColourId(x, y);
-            cellRenderer.sprite = UiPalette.GetBlockSprite(colourId);
-            cellRenderer.color = UiPalette.GetBlockColour(colourId);
+            Sprite sprite = UiPalette.GetFilledCellSprite(colourId);
+            Color colour = UiPalette.GetBlockColour(colourId);
+
+            // If this cell already has a fill renderer, return it to the
+            // pool first — we always get a FRESH one so the Android
+            // renderer never has its sprite mutated in place.
+            if (_fillRenderers[idx] != null)
+            {
+                _fillPool.Return(_fillRenderers[idx]);
+                _fillRenderers[idx] = null;
+            }
+
+            SpriteRenderer fill = _fillPool.Get();
+            fill.transform.SetParent(_bgRenderers[idx].transform, false);
+            fill.transform.localPosition = new Vector3(0f, 0f, FillZOffset);
+            fill.transform.localScale = Vector3.one;
+            fill.sprite = sprite;
+            fill.color = colour;
+
+            _fillRenderers[idx] = fill;
         }
         else
         {
-            cellRenderer.sprite = PlaceholderSprite.GetSolid(Color.white);
-            cellRenderer.color = UiPalette.EmptyCellFill;
+            // Cell is empty — return fill renderer to pool if one exists.
+            if (_fillRenderers[idx] != null)
+            {
+                _fillPool.Return(_fillRenderers[idx]);
+                _fillRenderers[idx] = null;
+            }
         }
-
-        // REVERTED CANDIDATE FIX (see PROGRESS.md OPEN BUG): tried
-        // toggling cellRenderer.enabled off/on here as a workaround for a
-        // documented Unity mobile/IL2CPP "stale SpriteRenderer" gotcha.
-        // Proven actively harmful, not just ineffective: it turned a
-        // previously-passing Editor PlayMode test (GridRenderingPlayModeTests,
-        // real Direct3D rendering) into a failing one with the exact same
-        // "cell reports correct data but renders as empty" symptom this
-        // bug is about — i.e. the toggle itself can cause Unity to skip
-        // rendering a renderer for a frame. Left as a documented dead end
-        // rather than silently removed, since "toggling .enabled has real
-        // rendering side effects" is a genuine, reusable finding for
-        // whoever picks this bug up next.
-        Debug.Log($"[DIAG] RefreshCell grid={GetInstanceID()} ({x},{y}) filled={filled} colour={cellRenderer.color} active={cellRenderer.gameObject.activeInHierarchy} enabled={cellRenderer.enabled}");
     }
 
     public static Vector3 CellToLocalPosition(int x, int y)

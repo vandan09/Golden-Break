@@ -31,7 +31,9 @@ public sealed class HomeScreen : MonoBehaviour
     private const float TopPadding = 64f;
     private const float BottomPadding = 40f;
 
-    private const int TitleFontSize = 34;
+    private const int TitleFontSize = 36;
+    private const float TitleHeight = 44f;
+    private const float TitleWordGap = 12f;
     private const int SubtitleFontSize = 13;
     private const int CardTitleFontSize = 15;
     private const int CardDetailFontSize = 13;
@@ -193,28 +195,104 @@ public sealed class HomeScreen : MonoBehaviour
     {
         float cursor = TopPadding;
 
-        string titleMarkup = $"<color=#e8c060>Golden</color> Break";
-        Text title = CreateTopAnchoredText(parent, "Title", titleMarkup, cursor, 44f, TitleFontSize, UiPalette.TextPrimary);
-        title.fontStyle = FontStyle.Bold;
+        BuildTitle(parent, cursor);
         cursor += 44f + 10f;
 
         _subtitleText = CreateTopAnchoredText(parent, "Subtitle", string.Empty, cursor, 18f, SubtitleFontSize, UiPalette.TextSecondary);
     }
 
+    // Split into two Texts rather than one rich-text string: the mockup
+    // glows only the gold "Golden" span, and a per-word glow is impossible
+    // while both words share a single Text.
+    private void BuildTitle(Transform parent, float topY)
+    {
+        var rowObject = new GameObject("Title");
+        var rowRect = rowObject.AddComponent<RectTransform>();
+        rowObject.transform.SetParent(parent, false);
+        rowRect.anchorMin = new Vector2(0f, 1f);
+        rowRect.anchorMax = new Vector2(1f, 1f);
+        rowRect.pivot = new Vector2(0.5f, 1f);
+        rowRect.offsetMin = new Vector2(SidePadding, -(topY + TitleHeight));
+        rowRect.offsetMax = new Vector2(-SidePadding, -topY);
+
+        // Laid out by hand rather than with a HorizontalLayoutGroup: the glow
+        // has to be a sibling sized to the gold word alone, and a layout group
+        // would treat it as a third item and shove the words apart.
+        Text golden = CreateTitleWord(rowObject.transform, "Golden", UiPalette.GoldFill);
+        Text rest = CreateTitleWord(rowObject.transform, "Break", UiPalette.TextPrimary);
+
+        float goldenWidth = golden.preferredWidth;
+        float restWidth = rest.preferredWidth;
+        float total = goldenWidth + TitleWordGap + restWidth;
+        float left = -total * 0.5f;
+
+        PlaceTitleWord(golden, left + (goldenWidth * 0.5f), goldenWidth);
+        PlaceTitleWord(rest, left + goldenWidth + TitleWordGap + (restWidth * 0.5f), restWidth);
+
+        // text-shadow: 0 0 20px rgba(232,192,96,0.35) on the gold span only.
+        //
+        // Outline was tried here and is the wrong tool: it stamps hard copies
+        // of the glyph mesh at fixed offsets, so it reads as a rim or, when
+        // widened, as a solid block -- never as a 20px blur. A soft sprite
+        // sized to this one word is far closer, and being sized to the word
+        // it does not read as the stray dot the old full-width version did.
+        UiKit.AddGlowBehind(
+            golden.rectTransform,
+            UiPalette.GoldFill,
+            UiKit.TextGlowBlur,
+            UiKit.TextGlowAlpha,
+            UiKit.TextGlowBlur);
+    }
+
+    private static Text CreateTitleWord(Transform parent, string word, Color colour)
+    {
+        var wordObject = new GameObject(word);
+        wordObject.transform.SetParent(parent, false);
+        wordObject.AddComponent<RectTransform>();
+
+        var text = wordObject.AddComponent<Text>();
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.fontSize = TitleFontSize;
+        text.fontStyle = FontStyle.Bold;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = colour;
+        text.horizontalOverflow = HorizontalWrapMode.Overflow;
+        text.verticalOverflow = VerticalWrapMode.Overflow;
+        text.text = word;
+
+        return text;
+    }
+
+    private static void PlaceTitleWord(Text text, float centreX, float width)
+    {
+        RectTransform rect = text.rectTransform;
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(centreX, 0f);
+        rect.sizeDelta = new Vector2(width, TitleHeight);
+    }
+
     private void BuildBottomGroup(Transform parent)
     {
-        float cursor = BottomPadding;
+        float iconRowY = BottomPadding;
+        float dailyY = iconRowY + RowHeight + RowTopGap;
+        float playY = dailyY + DailyButtonHeight + DailyTopGap;
+        float cardY = playY + PlayButtonHeight + CardBottomGap;
 
-        BuildIconRow(parent, cursor);
-        cursor += RowHeight + RowTopGap;
+        // Card is built FIRST so it sits under the Play button glow. uGUI
+        // paints in hierarchy order, and building it last let its opaque
+        // bottom edge slice a hard horizontal line through the glow: the gap
+        // above the button is 18px while the glow reaches 24px, so the top of
+        // the halo was being chopped off square.
+        //
+        // The mockup orders them the same way -- the button follows the card,
+        // so its box-shadow falls across it rather than being clipped by it.
+        BuildCeramicCard(parent, cardY);
 
-        BuildDailyChallengeButton(parent, cursor);
-        cursor += DailyButtonHeight + DailyTopGap;
-
-        BuildPlayButton(parent, cursor);
-        cursor += PlayButtonHeight + CardBottomGap;
-
-        BuildCeramicCard(parent, cursor);
+        BuildIconRow(parent, iconRowY);
+        BuildDailyChallengeButton(parent, dailyY);
+        BuildPlayButton(parent, playY);
     }
 
     private void BuildCeramicCard(Transform parent, float bottomY)
@@ -245,74 +323,35 @@ public sealed class HomeScreen : MonoBehaviour
 
     private void BuildPlayButton(Transform parent, float bottomY)
     {
-        RectTransform buttonRect = CreateBottomAnchoredStretchRect(parent, "PlayButton", bottomY, PlayButtonHeight);
-        Image buttonImage = buttonRect.gameObject.AddComponent<Image>();
-        buttonImage.sprite = RoundedRectSprite.Get(30);
-        buttonImage.type = Image.Type.Sliced;
-        buttonImage.color = UiPalette.Surface;
-        AddBorder(buttonRect, 30, UiPalette.GoldFill);
-        buttonRect.gameObject.AddComponent<Button>().onClick.AddListener(OnPlayClicked);
+        Button button = UiKit.BuildButton(
+            parent,
+            "PlayButton",
+            Strings.HomePlayButton,
+            OnPlayClicked,
+            UiKit.ButtonStyle.Primary,
+            PlayButtonHeight,
+            TriangleSprite.Get(),
+            new Vector2(14f, 18f));
 
-        var contentObject = new GameObject("Content");
-        var contentRect = contentObject.AddComponent<RectTransform>();
-        contentObject.transform.SetParent(buttonRect, false);
-        contentRect.anchorMin = Vector2.zero;
-        contentRect.anchorMax = Vector2.one;
-        contentRect.offsetMin = Vector2.zero;
-        contentRect.offsetMax = Vector2.zero;
-        var layout = contentObject.AddComponent<HorizontalLayoutGroup>();
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.spacing = 10f;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = false;
-
-        BuildPlayTriangle(contentObject.transform, 14f, 18f);
-        Text label = CreateAutoSizeText(contentObject.transform, Strings.HomePlayButton.ToUpperInvariant(), PlayLabelFontSize, UiPalette.GoldFill);
-        label.fontStyle = FontStyle.Bold;
-    }
-
-    // CSS-triangle equivalent: a UI Image using a small procedurally
-    // generated right-pointing triangle sprite, matching the mockup's
-    // border-trick play icon exactly in silhouette.
-    private void BuildPlayTriangle(Transform parent, float width, float height)
-    {
-        var triangleObject = new GameObject("PlayTriangle");
-        var rect = triangleObject.AddComponent<RectTransform>();
-        triangleObject.transform.SetParent(parent, false);
-        rect.sizeDelta = new Vector2(width, height);
-        var image = triangleObject.AddComponent<Image>();
-        image.sprite = TriangleSprite.Get();
-        image.color = UiPalette.GoldFill;
-
-        var layoutElement = triangleObject.AddComponent<LayoutElement>();
-        layoutElement.preferredWidth = width;
-        layoutElement.preferredHeight = height;
+        UiKit.AnchorBottomStretch(button.GetComponent<RectTransform>(), bottomY, PlayButtonHeight, SidePadding);
+        UiKit.AddPrimaryGlow(button, PlayButtonHeight);
     }
 
     private void BuildDailyChallengeButton(Transform parent, float bottomY)
     {
-        RectTransform buttonRect = CreateBottomAnchoredStretchRect(parent, "DailyChallengeButton", bottomY, DailyButtonHeight);
-        Image buttonImage = buttonRect.gameObject.AddComponent<Image>();
-        buttonImage.sprite = RoundedRectSprite.Get((int)DailyButtonRadius);
-        buttonImage.type = Image.Type.Sliced;
-        buttonImage.color = UiPalette.Surface;
-        AddBorder(buttonRect, (int)DailyButtonRadius, UiPalette.CardBorder);
-        buttonRect.gameObject.AddComponent<Button>().onClick.AddListener(OnDailyChallengeClicked);
+        Button button = UiKit.BuildButton(
+            parent,
+            "DailyChallengeButton",
+            Strings.HomeDailyChallengeButton,
+            OnDailyChallengeClicked,
+            UiKit.ButtonStyle.Secondary,
+            DailyButtonHeight);
 
-        var contentObject = new GameObject("Content");
-        var contentRect = contentObject.AddComponent<RectTransform>();
-        contentObject.transform.SetParent(buttonRect, false);
-        contentRect.anchorMin = Vector2.zero;
-        contentRect.anchorMax = Vector2.one;
-        contentRect.offsetMin = Vector2.zero;
-        contentRect.offsetMax = Vector2.zero;
-        var layout = contentObject.AddComponent<HorizontalLayoutGroup>();
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.spacing = 10f;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = false;
+        UiKit.AnchorBottomStretch(button.GetComponent<RectTransform>(), bottomY, DailyButtonHeight, SidePadding);
 
-        CreateAutoSizeText(contentObject.transform, Strings.HomeDailyChallengeButton, ButtonLabelFontSize, UiPalette.TextPrimary).fontStyle = FontStyle.Bold;
+        // The streak badge rides inside the button's own centred content
+        // row, so label + badge stay centred together as one unit.
+        Transform contentObject = UiKit.GetContentRow(button);
 
         var badgeObject = new GameObject("StreakBadge");
         var badgeRect = badgeObject.AddComponent<RectTransform>();
@@ -452,7 +491,7 @@ public sealed class HomeScreen : MonoBehaviour
     // Play Mode screenshot), especially visible on the gold Play-button
     // border. cornerRadiusPixels matches the same background sprite's own
     // corner radius so the border sits exactly on that edge.
-    private static void AddBorder(RectTransform target, int cornerRadiusPixels, Color colour, int strokeWidth = 6)
+    private static void AddBorder(RectTransform target, int cornerRadiusPixels, Color colour, int strokeWidth = 1)
     {
         var borderObject = new GameObject("Border");
         var borderRect = borderObject.AddComponent<RectTransform>();
@@ -467,6 +506,14 @@ public sealed class HomeScreen : MonoBehaviour
         image.type = Image.Type.Sliced;
         image.color = colour;
         image.raycastTarget = false;
+
+        // A border is a full-rect overlay, never a layout row. Without this,
+        // a parent VerticalLayoutGroup/HorizontalLayoutGroup treats it as a
+        // child and gives it a row of its own — Image implements
+        // ILayoutElement, so it reports the border sprite's native size —
+        // squeezing the real content. On the gallery card that pushed the
+        // date and score rows to zero height, making them invisible.
+        borderObject.AddComponent<LayoutElement>().ignoreLayout = true;
     }
 
     private static Text CreateTopAnchoredText(Transform parent, string name, string initialText, float topY, float height, int fontSize, Color colour)

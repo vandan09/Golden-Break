@@ -112,10 +112,14 @@ public class PieceControllerTests
         _controller.UpdateDrag(targetWorld);
         _controller.EndDrag();
 
-        SpriteRenderer cellRenderer = _grid.transform.Find("Cell_5_5").GetComponent<SpriteRenderer>();
-        Assert.AreEqual(UiPalette.GetBlockColour(0), cellRenderer.color);
-        Assert.AreEqual(UiPalette.GetBlockSprite(0), cellRenderer.sprite);
-        Assert.AreNotEqual(PlaceholderSprite.GetSolid(Color.white), cellRenderer.sprite);
+        // Fill overlay is a child of the cell (pooled renderer, not the
+        // background — see GridManager's doc for the Android rendering fix).
+        Transform cell = _grid.transform.Find("Cell_5_5");
+        Assert.IsTrue(cell.childCount > 0, "Filled cell should have a fill overlay child");
+        SpriteRenderer overlay = cell.GetChild(0).GetComponent<SpriteRenderer>();
+        Assert.AreEqual(UiPalette.GetBlockColour(0), overlay.color);
+        Assert.AreEqual(UiPalette.GetFilledCellSprite(0), overlay.sprite);
+        Assert.AreNotEqual(BlockCellSprite.GetEmptyCell(), overlay.sprite);
     }
 
     [Test]

@@ -32,7 +32,7 @@ public static class ProjectSetup
         // The package/bundle ID is permanent once published to Play Store —
         // pinning it explicitly rather than trusting Unity's auto-derivation
         // from company/product name to keep producing it by accident.
-        PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.GoldenBreak.GoldenBreak");
+        PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.dizzo.goldenBreak");
 
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
         PlayerSettings.allowedAutorotateToPortrait = true;

@@ -56,6 +56,44 @@ public sealed class AudioManager : MonoBehaviour
                 _clipLookup[entry.Effect] = entry.Clip;
             }
         }
+
+        LoadClipsFromResources();
+    }
+
+    /// <summary>
+    /// Fills in any effect that has no clip from
+    /// <c>Resources/Audio/&lt;SoundEffect&gt;</c>.
+    ///
+    /// The serialized array above only works for an AudioManager placed in
+    /// a scene and wired in the Inspector, but this one is created at
+    /// runtime by GameplayController — so that array is always empty and
+    /// every sound stayed silent no matter what was imported. Loading by
+    /// enum name means adding a sound is just dropping a correctly-named
+    /// file into Resources/Audio, with no scene or code change.
+    ///
+    /// Inspector assignments still win, so this cannot override a
+    /// deliberately wired clip.
+    /// </summary>
+    private void LoadClipsFromResources()
+    {
+        foreach (SoundEffect effect in System.Enum.GetValues(typeof(SoundEffect)))
+        {
+            if (_clipLookup.ContainsKey(effect))
+            {
+                continue;
+            }
+
+            var clip = Resources.Load<AudioClip>($"Audio/{effect}");
+            if (clip != null)
+            {
+                _clipLookup[effect] = clip;
+            }
+        }
+
+        if (_musicLoop == null)
+        {
+            _musicLoop = Resources.Load<AudioClip>("Audio/MusicLoop");
+        }
     }
 
     public void SetSoundEnabled(bool enabled)

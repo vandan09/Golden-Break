@@ -22,7 +22,7 @@ public class CeramicViewTests
         {
             _fourCrackDefinition.cracks[i] = new CrackPath
             {
-                controlPoints = new[]
+                points = new[]
                 {
                     new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(2f, 1f), new Vector2(3f, 0f)
                 }
@@ -40,42 +40,66 @@ public class CeramicViewTests
     }
 
     [Test]
-    public void SetCeramic_ActivatesExactlyTotalCracksRenderers()
+    // The resting ceramic is one rasterized sprite carrying every crack, so
+    // the LineRenderers are idle until a crack actually animates. They used
+    // to hold the resting state, which is why this asserted the opposite.
+    public void SetCeramic_LeavesEveryCrackRendererInactive()
     {
         _view.SetCeramic(_fourCrackDefinition, cracksRepaired: 0, colourVariant: 0);
 
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 12; i++)
         {
-            Assert.IsTrue(_view.GetCrackRenderer(i).gameObject.activeSelf, $"crack {i} should be active");
-        }
-
-        for (int i = 4; i < 12; i++)
-        {
-            Assert.IsFalse(_view.GetCrackRenderer(i).gameObject.activeSelf, $"crack {i} should be inactive (only 4 cracks exist)");
+            Assert.IsFalse(
+                _view.GetCrackRenderer(i).gameObject.activeSelf,
+                $"crack {i} should be idle — the composite sprite draws the resting state");
         }
     }
 
     [Test]
-    public void SetCeramic_RepairedCracks_GetGoldColourUnrepairedGetGrey()
+    public void SetCeramic_RepairProgress_ChangesTheRenderedSprite()
     {
-        _view.SetCeramic(_fourCrackDefinition, cracksRepaired: 2, colourVariant: 0);
+        _view.SetCeramic(_fourCrackDefinition, cracksRepaired: 0, colourVariant: 0);
+        Sprite noneRepaired = CurrentSilhouette();
 
-        Assert.AreEqual(UiPalette.GoldFill, _view.GetCrackRenderer(0).startColor);
-        Assert.AreEqual(UiPalette.GoldFill, _view.GetCrackRenderer(1).startColor);
-        Assert.AreNotEqual(UiPalette.GoldFill, _view.GetCrackRenderer(2).startColor);
-        Assert.AreNotEqual(UiPalette.GoldFill, _view.GetCrackRenderer(3).startColor);
+        _view.SetCeramic(_fourCrackDefinition, cracksRepaired: 2, colourVariant: 0);
+        Sprite twoRepaired = CurrentSilhouette();
+
+        Assert.AreNotSame(noneRepaired, twoRepaired, "repairing cracks must repaint the ceramic");
     }
 
     [Test]
     public void SetCeramic_DifferentColourVariants_ProduceDifferentRepairedColour()
     {
         _view.SetCeramic(_fourCrackDefinition, cracksRepaired: 1, colourVariant: 0);
-        Color baseVariantColour = _view.GetCrackRenderer(0).startColor;
+        Sprite baseVariant = CurrentSilhouette();
 
         _view.SetCeramic(_fourCrackDefinition, cracksRepaired: 1, colourVariant: 2);
-        Color secondVariantColour = _view.GetCrackRenderer(0).startColor;
+        Sprite secondVariant = CurrentSilhouette();
 
-        Assert.AreNotEqual(baseVariantColour, secondVariantColour);
+        // §3.4's tier 10+ colour variants have to reach the resting ceramic,
+        // not just a crack mid-animation.
+        Assert.AreNotSame(baseVariant, secondVariant, "a colour variant must repaint the gold");
+        Assert.AreNotEqual(
+            CeramicGold.ForVariant(0),
+            CeramicGold.ForVariant(2),
+            "variant 2 must differ in hue from the base gold");
+    }
+
+    [Test]
+    public void AnimateCrackFill_ActivatesOnlyThatCracksRenderer()
+    {
+        _view.SetCeramic(_fourCrackDefinition, cracksRepaired: 0, colourVariant: 0);
+
+        _view.AnimateCrackFill(1, null);
+
+        Assert.IsTrue(_view.GetCrackRenderer(1).gameObject.activeSelf, "the filling crack draws with a line");
+        Assert.IsFalse(_view.GetCrackRenderer(0).gameObject.activeSelf);
+        Assert.IsFalse(_view.GetCrackRenderer(2).gameObject.activeSelf);
+    }
+
+    private Sprite CurrentSilhouette()
+    {
+        return _view.transform.Find("Silhouette").GetComponent<SpriteRenderer>().sprite;
     }
 
     [Test]

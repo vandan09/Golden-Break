@@ -31,7 +31,16 @@ public static class ResponsiveCanvasSetup
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(ReferenceWidth, ReferenceHeight);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = 1f; // match height — portrait phones vary more in width than height
+        // Match WIDTH, not height. The mockup is a 390-wide phone frame and
+        // every pixel value in this UI is copied from it, so the canvas must
+        // be exactly 390 units wide on every device for those numbers to be
+        // literally correct. Matching height instead made the canvas
+        // 844 x screenAspect units wide — 379.8 on a 1080x2400 phone — so
+        // anything sized against the mockup's 390 overflowed the right edge
+        // by ~2.6% (visible as the gallery's second column being cut off).
+        // Matching width instead varies the vertical unit count, which the
+        // screens already absorb via flex spacers and anchored content.
+        scaler.matchWidthOrHeight = 0f;
 
         canvasObject.AddComponent<GraphicRaycaster>();
         return canvas;

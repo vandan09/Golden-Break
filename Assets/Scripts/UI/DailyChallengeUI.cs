@@ -17,7 +17,6 @@ using UnityEngine.UI;
 /// </summary>
 public sealed class DailyChallengeUI : MonoBehaviour
 {
-    private const int TitleFontSize = 32;
     private const int StatusFontSize = 22;
     private const int ButtonLabelFontSize = 26;
 
@@ -28,7 +27,7 @@ public sealed class DailyChallengeUI : MonoBehaviour
     private Func<DateTime> _nowProvider;
 
     // Set post-construction (GameplayController builds HomeScreen last).
-    // Only the X close button (and BackButtonRouter) return to Home —
+    // Only the header's back button (and BackButtonRouter) return to Home —
     // tapping Play deliberately does not, it starts the daily-challenge
     // game instead. Real bug caught on-device: Home's own panel never
     // hid itself when opening this screen, so it opened invisibly behind
@@ -55,16 +54,11 @@ public sealed class DailyChallengeUI : MonoBehaviour
 
     private void BuildUi()
     {
-        var canvasObject = new GameObject("DailyChallengeCanvas");
-        canvasObject.transform.SetParent(transform, false);
-        var canvas = canvasObject.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 20;
-        canvasObject.AddComponent<CanvasScaler>();
-        canvasObject.AddComponent<GraphicRaycaster>();
+        Canvas canvas = ResponsiveCanvasSetup.BuildCanvas(transform, "DailyChallengeCanvas", 20);
+        RectTransform safeArea = ResponsiveCanvasSetup.BuildSafeArea(canvas.transform);
 
         _panel = new GameObject("Panel");
-        _panel.transform.SetParent(canvasObject.transform, false);
+        _panel.transform.SetParent(safeArea, false);
         var panelImage = _panel.AddComponent<Image>();
         panelImage.color = UiPalette.Background;
         var panelRect = _panel.GetComponent<RectTransform>();
@@ -73,11 +67,11 @@ public sealed class DailyChallengeUI : MonoBehaviour
         panelRect.offsetMin = Vector2.zero;
         panelRect.offsetMax = Vector2.zero;
 
-        CreateText(_panel.transform, Strings.DailyChallengeTitle, new Vector2(0.5f, 0.72f), TitleFontSize, UiPalette.TextPrimary);
+        UiKit.BuildBackHeader(_panel.transform, Strings.DailyChallengeTitle, Hide);
+
         _statusText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.6f), StatusFontSize, UiPalette.TextSecondary);
         _ghostScoreText = CreateText(_panel.transform, string.Empty, new Vector2(0.5f, 0.53f), StatusFontSize, UiPalette.GoldFill);
 
-        BuildCloseButton(_panel.transform);
         BuildPlayButton(_panel.transform);
     }
 
@@ -103,55 +97,57 @@ public sealed class DailyChallengeUI : MonoBehaviour
         return text;
     }
 
-    private void BuildCloseButton(Transform parent)
-    {
-        var buttonObject = new GameObject("CloseButton");
-        buttonObject.transform.SetParent(parent, false);
-        buttonObject.AddComponent<Image>().color = UiPalette.Surface;
-        buttonObject.AddComponent<Button>().onClick.AddListener(Hide);
-
-        var rect = buttonObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(1f, 1f);
-        rect.anchorMax = new Vector2(1f, 1f);
-        rect.pivot = new Vector2(1f, 1f);
-        rect.anchoredPosition = new Vector2(-20f, -20f);
-        rect.sizeDelta = new Vector2(60f, 50f);
-
-        var label = CreateText(buttonObject.transform, Strings.CloseButtonSymbol, Vector2.zero, 24, UiPalette.TextPrimary);
-        var labelRect = label.GetComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = Vector2.zero;
-        labelRect.offsetMax = Vector2.zero;
-    }
-
     private void BuildPlayButton(Transform parent)
     {
-        var buttonObject = new GameObject("PlayButton");
-        buttonObject.transform.SetParent(parent, false);
-        buttonObject.AddComponent<Image>().color = UiPalette.Surface;
-        buttonObject.AddComponent<Button>().onClick.AddListener(OnPlayClicked);
+        Button button = UiKit.BuildButton(
+            parent,
+            "PlayButton",
+            Strings.DailyChallengePlayButton,
+            OnPlayClicked,
+            UiKit.ButtonStyle.Primary,
+            UiKit.PrimaryButtonHeight,
+            TriangleSprite.Get(),
+            new Vector2(14f, 18f));
 
-        var rect = buttonObject.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 0.35f);
-        rect.anchorMax = new Vector2(0.5f, 0.35f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(280f, 70f);
+        UiKit.AnchorCentred(
+            button.GetComponent<RectTransform>(),
+            new Vector2(0.5f, 0.35f),
+            260f,
+            UiKit.PrimaryButtonHeight);
 
-        var label = CreateText(buttonObject.transform, Strings.DailyChallengePlayButton, Vector2.zero, ButtonLabelFontSize, UiPalette.TextPrimary);
-        var labelRect = label.GetComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = Vector2.zero;
-        labelRect.offsetMax = Vector2.zero;
+        UiKit.AddPrimaryGlow(button, UiKit.PrimaryButtonHeight);
+    }
+
+    private static void AddBorder(RectTransform target, int cornerRadiusPixels, Color colour, int strokeWidth = 1)
+    {
+        var borderObject = new GameObject("Border");
+        var borderRect = borderObject.AddComponent<RectTransform>();
+        borderObject.transform.SetParent(target, false);
+        borderRect.anchorMin = Vector2.zero;
+        borderRect.anchorMax = Vector2.one;
+        borderRect.offsetMin = Vector2.zero;
+        borderRect.offsetMax = Vector2.zero;
+
+        var image = borderObject.AddComponent<Image>();
+        image.sprite = RoundedRectBorderSprite.Get(cornerRadiusPixels, strokeWidth);
+        image.type = Image.Type.Sliced;
+        image.color = colour;
+        image.raycastTarget = false;
+
+        // A border is a full-rect overlay, never a layout row. Without this,
+        // a parent VerticalLayoutGroup/HorizontalLayoutGroup treats it as a
+        // child and gives it a row of its own — Image implements
+        // ILayoutElement, so it reports the border sprite's native size —
+        // squeezing the real content. On the gallery card that pushed the
+        // date and score rows to zero height, making them invisible.
+        borderObject.AddComponent<LayoutElement>().ignoreLayout = true;
     }
 
     private void OnPlayClicked()
     {
         // Deliberately does not go through Hide() — Play starts the
         // daily-challenge game, it must not bounce back to Home the way
-        // the X button and the back button do. Re-enables input directly
+        // the header back button and the hardware back do. Re-enables input directly
         // (Show() disabled it, and the injected callback only builds/
         // activates the Daily Challenge view, it has no notion of
         // InputHandler to re-enable it as a side effect).
@@ -185,6 +181,7 @@ public sealed class DailyChallengeUI : MonoBehaviour
         _ghostScoreText.text = string.Format(Strings.DailyChallengeGhostScoreFormat, ghostScore.ToString("N0"));
 
         _panel.SetActive(true);
+        UiKit.PlayOverlayShow(_panel);
         if (_inputHandler != null)
         {
             _inputHandler.InputEnabled = false;

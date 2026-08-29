@@ -11,18 +11,12 @@ using UnityEngine.UI;
 ///
 /// Crack coordinates come from the same <see cref="CrackPath"/> data
 /// CeramicView draws in world space — sampled here with the same
-/// <see cref="BezierUtility"/> and rendered as thin rotated Image
+/// <see cref="PolylineUtility"/> and rendered as thin rotated Image
 /// segments between consecutive sample points, since uGUI has no native
 /// line/path renderer.
 /// </summary>
 public sealed class UiCeramicPreview : MonoBehaviour
 {
-    private const int SamplesPerCrack = 10;
-    private const float LineThickness = 2.2f;
-
-    private static readonly Color RepairedColour = FromHex("#e8c060");
-    private static readonly Color UnrepairedColour = FromHex("#4a4768");
-
     private RectTransform _container;
     private Image _silhouetteImage;
     private RectTransform _crackRoot;
@@ -34,10 +28,12 @@ public sealed class UiCeramicPreview : MonoBehaviour
         var silhouetteObject = new GameObject("Silhouette");
         var silhouetteRect = silhouetteObject.AddComponent<RectTransform>();
         silhouetteObject.transform.SetParent(container, false);
-        silhouetteRect.anchorMin = Vector2.zero;
-        silhouetteRect.anchorMax = Vector2.one;
-        silhouetteRect.offsetMin = Vector2.zero;
-        silhouetteRect.offsetMax = Vector2.zero;
+        // Centred with an explicit size rather than stretched to fill: the
+        // size is set per shape in SetCeramic so each keeps its own aspect.
+        silhouetteRect.anchorMin = new Vector2(0.5f, 0.5f);
+        silhouetteRect.anchorMax = new Vector2(0.5f, 0.5f);
+        silhouetteRect.pivot = new Vector2(0.5f, 0.5f);
+        silhouetteRect.anchoredPosition = Vector2.zero;
         _silhouetteImage = silhouetteObject.AddComponent<Image>();
 
         var crackRootObject = new GameObject("Cracks");
@@ -49,7 +45,7 @@ public sealed class UiCeramicPreview : MonoBehaviour
         _crackRoot.sizeDelta = Vector2.zero;
     }
 
-    public void SetCeramic(CeramicDefinition definition, int cracksRepaired)
+    public void SetCeramic(CeramicDefinition definition, int cracksRepaired, int colourVariant = 0)
     {
         if (definition == null)
         {
@@ -58,71 +54,26 @@ public sealed class UiCeramicPreview : MonoBehaviour
             return;
         }
 
-        _silhouetteImage.enabled = true;
-        _silhouetteImage.sprite = CeramicSilhouetteSprite.Get(definition.shape);
-
         ClearCracks();
+        _silhouetteImage.enabled = true;
+
+        // Silhouette AND cracks come from one rasterized sprite that paints
+        // the design SVG exactly — round caps, round joins and the gold
+        // drop-shadow included. The previous approach drew each crack
+        // segment as a rotated Image quad, which uGUI cannot give round ends
+        // or joins, so every bend showed a notch and the gold read flat.
+        _silhouetteImage.sprite = CeramicSilhouetteSprite.GetComposite(
+            definition.shape, definition.cracks, cracksRepaired, colourVariant);
 
         Vector2 viewBox = CeramicSilhouetteSprite.GetViewBoxSize(definition.shape);
         Rect containerRect = _container.rect;
-        float scaleX = containerRect.width / viewBox.x;
-        float scaleY = containerRect.height / viewBox.y;
 
-        if (definition.cracks == null)
-        {
-            return;
-        }
-
-        for (int i = 0; i < definition.cracks.Length; i++)
-        {
-            bool repaired = i < cracksRepaired;
-            DrawCrack(definition.cracks[i], repaired, scaleX, scaleY);
-        }
-    }
-
-    private void DrawCrack(CrackPath path, bool repaired, float scaleX, float scaleY)
-    {
-        if (path.controlPoints == null || path.controlPoints.Length != 4)
-        {
-            return;
-        }
-
-        Color colour = repaired ? RepairedColour : UnrepairedColour;
-        Vector2 previous = ToUiSpace(BezierUtility.Evaluate(path.controlPoints, 0f), scaleX, scaleY);
-
-        for (int s = 1; s <= SamplesPerCrack; s++)
-        {
-            float t = s / (float)SamplesPerCrack;
-            Vector2 current = ToUiSpace(BezierUtility.Evaluate(path.controlPoints, t), scaleX, scaleY);
-            CreateSegment(previous, current, colour);
-            previous = current;
-        }
-    }
-
-    private static Vector2 ToUiSpace(Vector2 localPoint, float scaleX, float scaleY)
-    {
-        return new Vector2(localPoint.x * scaleX, localPoint.y * scaleY);
-    }
-
-    private void CreateSegment(Vector2 from, Vector2 to, Color colour)
-    {
-        var segmentObject = new GameObject("CrackSegment");
-        var rect = segmentObject.AddComponent<RectTransform>();
-        segmentObject.transform.SetParent(_crackRoot, false);
-
-        var image = segmentObject.AddComponent<Image>();
-        image.color = colour;
-
-        Vector2 delta = to - from;
-        float length = delta.magnitude;
-        float angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
-
-        rect.anchorMin = new Vector2(0.5f, 0.5f);
-        rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = (from + to) * 0.5f;
-        rect.sizeDelta = new Vector2(length, LineThickness);
-        rect.localRotation = Quaternion.Euler(0f, 0f, angle);
+        // ONE scale for both axes, fitted to the shorter side. Scaling X and
+        // Y independently to fill a square box stretched a plate (200x100) to
+        // double height and squashed a vase (140x200) by ~43%%, which is why
+        // every shape except the near-square bowl looked wrong.
+        float scale = Mathf.Min(containerRect.width / viewBox.x, containerRect.height / viewBox.y);
+        _silhouetteImage.rectTransform.sizeDelta = viewBox * scale;
     }
 
     private void ClearCracks()
@@ -131,11 +82,5 @@ public sealed class UiCeramicPreview : MonoBehaviour
         {
             Object.Destroy(_crackRoot.GetChild(i).gameObject);
         }
-    }
-
-    private static Color FromHex(string hex)
-    {
-        ColorUtility.TryParseHtmlString(hex, out Color colour);
-        return colour;
     }
 }

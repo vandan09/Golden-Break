@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 /// <summary>
 /// Polls touch/mouse input each frame and drives
@@ -48,6 +49,44 @@ public sealed class InputHandler : MonoBehaviour
         _pieceController = pieceController;
     }
 
+    // IsPointerOverGameObject() reports the EventSystem's *previous* frame
+    // raycast, so on the touch-down frame it is false whenever this
+    // Update() runs before the input module's — a script-execution-order
+    // race that made undo-button taps fall through and start a drag on the
+    // piece the undo had just restored. Raycasting explicitly here is
+    // order-independent.
+    private static readonly System.Collections.Generic.List<RaycastResult> RaycastResults =
+        new System.Collections.Generic.List<RaycastResult>();
+
+    private bool IsPointerOverUI(Vector2 screenPosition)
+    {
+        if (EventSystem.current == null) return false;
+
+        var pointerData = new PointerEventData(EventSystem.current) { position = screenPosition };
+        RaycastResults.Clear();
+        EventSystem.current.RaycastAll(pointerData, RaycastResults);
+
+        // Only an actual interactive control should swallow the touch. uGUI
+        // Text defaults to raycastTarget=true, so treating every hit as
+        // blocking would let the score/progress/hint labels veto legitimate
+        // drags on the tray and grid behind them.
+        // Deliberately ignores Selectable.interactable: the undo button is
+        // set non-interactable the moment an undo is spent, and a *disabled*
+        // button still occupies that spot on screen. Letting the touch fall
+        // through to the world behind it is what made a second undo tap grab
+        // the piece the first undo had just returned to the tray and fling it
+        // to the button.
+        for (int i = 0; i < RaycastResults.Count; i++)
+        {
+            if (RaycastResults[i].gameObject.GetComponentInParent<UnityEngine.UI.Selectable>() != null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void Update()
     {
         if (_pieceController == null || _camera == null || !InputEnabled)
@@ -57,6 +96,7 @@ public sealed class InputHandler : MonoBehaviour
 
         if (Input.GetMouseButtonDown(0))
         {
+            if (IsPointerOverUI(Input.mousePosition)) return;
             Vector3 worldPosition = ScreenToWorld(Input.mousePosition);
             if (_pieceController.TryFindSlotAt(worldPosition, out int slotIndex))
             {

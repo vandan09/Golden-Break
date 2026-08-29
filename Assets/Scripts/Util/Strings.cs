@@ -33,6 +33,7 @@ public static class Strings
     // Gameplay HUD
     public const string HudBestFormat = "BEST {0}";
     public const string HudCoinsFormat = "{0} coins";
+    public const string NotEnoughCoinsFormat = "Need {0} coins";
     public const string HudUndoButtonFormat = "Undo ({0})";
     public const string HudRefreshButtonFormat = "Refresh ({0})";
     public const string HudStreakMultiplierFormat = "×{0} streak";
@@ -47,7 +48,8 @@ public static class Strings
     public const string GalleryEmptyState = "No completed ceramics yet - repair your first one!";
     public const string GalleryCardTierFormat = "Tier {0} - {1}";
     public const string GalleryCardCompletedFormat = "Completed {0}";
-    public const string GalleryCardScoreFormat = "Score {0}";
+    public const string GalleryCardScoreFormat = "{0} pts";
+    public const string GalleryNextPiece = "next piece";
 
     // Settings screen
     public const string SettingsTitle = "Settings";

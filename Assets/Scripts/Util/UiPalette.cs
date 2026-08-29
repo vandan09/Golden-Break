@@ -87,19 +87,26 @@ public static class UiPalette
         return blockColours[colourId % blockColours.Length];
     }
 
-    // Obstacle/empty cells stay flat (no pattern) — the pattern is
-    // specifically how a *placed piece* reads as more than just a colour;
-    // an obstacle is already visually distinct via BlockObstacle's own
-    // colour, and adding a pattern to it too would blur that distinction.
     public static Sprite GetBlockSprite(int colourId)
     {
         if (colourId < 0)
         {
-            return PlaceholderSprite.GetSolid(Color.white);
+            return BlockCellSprite.GetRoundedBlock();
         }
 
         PatternSprite.Pattern pattern = BlockPatterns[colourId % BlockPatterns.Length];
         return PatternSprite.Get(pattern, HighContrastEnabled);
+    }
+
+    public static Sprite GetFilledCellSprite(int colourId)
+    {
+        if (colourId < 0)
+        {
+            return BlockCellSprite.GetRoundedBlock();
+        }
+
+        PatternSprite.Pattern pattern = BlockPatterns[colourId % BlockPatterns.Length];
+        return BlockCellSprite.GetFilledCell(pattern, HighContrastEnabled);
     }
 
     private static PaletteDefinition BuildGoldenDark()
@@ -113,7 +120,7 @@ public static class UiPalette
         palette.textSecondary = FromHex("#7a7a9a");
         palette.goldFill = FromHex("#e8c060");
         palette.emptyCellFill = FromHex("#1e1e38");
-        palette.emptyCellBorder = FromHex("#2a2a4a");
+        palette.emptyCellBorder = FromHex("#3a3a5a");
         palette.blockObstacle = FromHex("#4a4a5e");
         palette.blockCoral = FromHex("#e06070");
         palette.blockBlue = FromHex("#60b0e0");

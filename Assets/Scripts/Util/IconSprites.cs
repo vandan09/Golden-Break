@@ -267,6 +267,235 @@ public static class ChevronLeftSprite
     }
 }
 
+/// <summary>Simple bent undo-arrow glyph (↩ shape) for the gameplay HUD undo button.</summary>
+public static class UndoIconSprite
+{
+    private const int Size = 48;
+    private const float StrokeWidth = 4.0f;
+    private static Sprite _cached;
+
+    public static Sprite Get()
+    {
+        if (_cached != null) return _cached;
+
+        var texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+        var pixels = new Color[Size * Size];
+
+        Vector2 arrowTip = new Vector2(8, 24);
+        Vector2 armUp = new Vector2(18, 34);
+        Vector2 armDown = new Vector2(18, 14);
+        Vector2 shaftRight = new Vector2(34, 24);
+        Vector2 tailTop = new Vector2(34, 40);
+
+        for (int y = 0; y < Size; y++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                Vector2 p = new Vector2(x + 0.5f, y + 0.5f);
+                float half = StrokeWidth * 0.5f;
+                bool hit = DistToSeg(p, arrowTip, armUp) <= half
+                        || DistToSeg(p, arrowTip, armDown) <= half
+                        || DistToSeg(p, arrowTip, shaftRight) <= half
+                        || DistToSeg(p, shaftRight, tailTop) <= half;
+                pixels[y * Size + x] = hit ? Color.white : Color.clear;
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+        _cached = Sprite.Create(texture, new Rect(0, 0, Size, Size), new Vector2(0.5f, 0.5f), 100f);
+        return _cached;
+    }
+
+    private static float DistToSeg(Vector2 p, Vector2 a, Vector2 b)
+    {
+        Vector2 ab = b - a;
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(ab.sqrMagnitude, 0.0001f));
+        return Vector2.Distance(p, a + t * ab);
+    }
+}
+
+/// <summary>
+/// Reroll/cycle glyph (↻) for the gameplay HUD refresh button. Sized to
+/// match <see cref="UndoIconSprite"/>'s 48px/4.0-stroke weight — the two
+/// sit side by side, and the old 32px/2.6 version read noticeably thinner
+/// than its neighbour.
+///
+/// Replaces the lightbulb this button used to carry: a bulb reads as
+/// "hint", but the button discards the current hand and deals three new
+/// pieces, and there is no hint feature in the game at all.
+/// </summary>
+public static class RefreshIconSprite
+{
+    private const int Size = 48;
+    private const float StrokeWidth = 4.0f;
+    private const float ArcRadius = 13.5f;
+    private const float ArrowWingLength = 7f;
+
+    // The arc is drawn counterclockwise over this sweep, leaving an 80°
+    // gap on the right that the two arrowheads sit in.
+    private const float ArcStartDegrees = 30f;
+    private const float ArcEndDegrees = 310f;
+
+    private static Sprite _cached;
+
+    public static Sprite Get()
+    {
+        if (_cached != null) return _cached;
+
+        var texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+        var pixels = new Color[Size * Size];
+        Vector2 centre = new Vector2(Size * 0.5f, Size * 0.5f);
+        float half = StrokeWidth * 0.5f;
+
+        // Arrowheads are aligned to the arc's tangent at each end so they
+        // read as direction of travel rather than as stray ticks.
+        Vector2 endPoint = PointOnArc(centre, ArcEndDegrees);
+        Vector2 endDirection = CounterClockwiseTangent(ArcEndDegrees);
+        Vector2 startPoint = PointOnArc(centre, ArcStartDegrees);
+        Vector2 startDirection = -CounterClockwiseTangent(ArcStartDegrees);
+
+        for (int y = 0; y < Size; y++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                Vector2 p = new Vector2(x + 0.5f, y + 0.5f);
+
+                float angle = Mathf.Atan2(p.y - centre.y, p.x - centre.x) * Mathf.Rad2Deg;
+                if (angle < 0) angle += 360f;
+
+                bool onArc = Mathf.Abs(Vector2.Distance(p, centre) - ArcRadius) <= half
+                             && angle >= ArcStartDegrees
+                             && angle <= ArcEndDegrees;
+
+                bool onArrow = IsOnArrowHead(p, endPoint, endDirection, half)
+                               || IsOnArrowHead(p, startPoint, startDirection, half);
+
+                pixels[y * Size + x] = (onArc || onArrow) ? Color.white : Color.clear;
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+        _cached = Sprite.Create(texture, new Rect(0, 0, Size, Size), new Vector2(0.5f, 0.5f), 100f);
+        return _cached;
+    }
+
+    private static Vector2 PointOnArc(Vector2 centre, float degrees)
+    {
+        float rad = degrees * Mathf.Deg2Rad;
+        return centre + new Vector2(Mathf.Cos(rad), Mathf.Sin(rad)) * ArcRadius;
+    }
+
+    private static Vector2 CounterClockwiseTangent(float degrees)
+    {
+        float rad = degrees * Mathf.Deg2Rad;
+        return new Vector2(-Mathf.Sin(rad), Mathf.Cos(rad));
+    }
+
+    // Two wings swept back 30° either side of the incoming direction.
+    private static bool IsOnArrowHead(Vector2 p, Vector2 tip, Vector2 direction, float halfStroke)
+    {
+        Vector2 back = -direction.normalized;
+        Vector2 wingA = tip + (Rotate(back, 30f) * ArrowWingLength);
+        Vector2 wingB = tip + (Rotate(back, -30f) * ArrowWingLength);
+        return DistToSeg(p, tip, wingA) <= halfStroke || DistToSeg(p, tip, wingB) <= halfStroke;
+    }
+
+    private static Vector2 Rotate(Vector2 v, float degrees)
+    {
+        float rad = degrees * Mathf.Deg2Rad;
+        float cos = Mathf.Cos(rad), sin = Mathf.Sin(rad);
+        return new Vector2((v.x * cos) - (v.y * sin), (v.x * sin) + (v.y * cos));
+    }
+
+    private static float DistToSeg(Vector2 p, Vector2 a, Vector2 b)
+    {
+        Vector2 ab = b - a;
+        float t = Mathf.Clamp01(Vector2.Dot(p - a, ab) / Mathf.Max(ab.sqrMagnitude, 0.0001f));
+        return Vector2.Distance(p, a + t * ab);
+    }
+}
+
+/// <summary>Lightbulb glyph for the gameplay HUD hint/refresh button — matches Claude Design Screen 2.</summary>
+public static class LightbulbIconSprite
+{
+    private const int Size = 48;
+    private const float StrokeWidth = 3.5f;
+    private static Sprite _cached;
+
+    public static Sprite Get()
+    {
+        if (_cached != null) return _cached;
+
+        var texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+        var pixels = new Color[Size * Size];
+        Vector2 centre = new Vector2(24, 27);
+        const float bulbRadius = 11f;
+
+        for (int y = 0; y < Size; y++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                Vector2 p = new Vector2(x + 0.5f, y + 0.5f);
+                float dist = Vector2.Distance(p, centre);
+
+                bool onBulb = Mathf.Abs(dist - bulbRadius) <= StrokeWidth * 0.5f && p.y >= 18f;
+
+                bool onBaseLine1 = Mathf.Abs(p.y - 13.5f) <= StrokeWidth * 0.4f && p.x >= 18f && p.x <= 30f;
+                bool onBaseLine2 = Mathf.Abs(p.y - 8.5f) <= StrokeWidth * 0.4f && p.x >= 19.5f && p.x <= 28.5f;
+
+                pixels[y * Size + x] = (onBulb || onBaseLine1 || onBaseLine2) ? Color.white : Color.clear;
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+        _cached = Sprite.Create(texture, new Rect(0, 0, Size, Size), new Vector2(0.5f, 0.5f), 100f);
+        return _cached;
+    }
+}
+
+/// <summary>Three-dot horizontal menu glyph (···) for compact menu buttons.</summary>
+public static class ThreeDotsIconSprite
+{
+    private const int Size = 32;
+    private static Sprite _cached;
+
+    public static Sprite Get()
+    {
+        if (_cached != null) return _cached;
+
+        var texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+        var pixels = new Color[Size * Size];
+        const float dotRadius = 2.4f;
+        Vector2[] dots = { new Vector2(8, 16), new Vector2(16, 16), new Vector2(24, 16) };
+
+        for (int y = 0; y < Size; y++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                Vector2 p = new Vector2(x + 0.5f, y + 0.5f);
+                bool onDot = false;
+                foreach (Vector2 d in dots)
+                {
+                    if (Vector2.Distance(p, d) <= dotRadius)
+                    {
+                        onDot = true;
+                        break;
+                    }
+                }
+                pixels[y * Size + x] = onDot ? Color.white : Color.clear;
+            }
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply();
+        _cached = Sprite.Create(texture, new Rect(0, 0, Size, Size), new Vector2(0.5f, 0.5f), 100f);
+        return _cached;
+    }
+}
+
 internal static class IconShapeMath
 {
     public static bool IsInsideRoundedRect(Vector2 p, float left, float bottom, float width, float height, float radius)
