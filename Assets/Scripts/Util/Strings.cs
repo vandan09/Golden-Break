@@ -26,9 +26,9 @@ public static class Strings
     public const string GameOverBestScoreFormat = "Best {0}";
     public const string GameOverCeramicProgressFormat = "Ceramic: {0}/{1} cracks repaired";
     public const string GameOverMilestoneReachedFormat = "Milestone {0} reached! +{1} coins";
-    public const string GameOverContinueButton = "Watch ad to continue";
+    public const string GameOverContinueButton = "Continue — keep your score";
     public const string GameOverDoubleCoinsButton = "Watch ad: double coins";
-    public const string GameOverPlayAgainButton = "Play again";
+    public const string GameOverPlayAgainButton = "Play again (start from 0)";
 
     // Gameplay HUD
     public const string HudBestFormat = "BEST {0}";

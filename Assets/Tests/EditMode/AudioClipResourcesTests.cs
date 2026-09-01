@@ -17,12 +17,19 @@ public class AudioClipResourcesTests
     // The clips supplied so far. Deliberately not the whole enum: the rest
     // are still to be sourced, and asserting on files that do not exist yet
     // would make this test a standing failure rather than a guard.
+    //
+    // PiecePickup is absent on purpose, not missing. Picking a piece up
+    // happens constantly and carries no consequence, so it is a 5ms haptic
+    // tick (HapticManager) rather than a sound that would repeat into noise
+    // and overlap the placement that follows it.
     private static readonly SoundEffect[] Supplied =
     {
-        SoundEffect.PiecePickup,
         SoundEffect.PiecePlace,
         SoundEffect.LineClear,
-        SoundEffect.ComboClear,
+        SoundEffect.CeramicComplete,
+        SoundEffect.PieceInvalid,
+        SoundEffect.GameOver,
+        SoundEffect.NewBest,
     };
 
     [Test]

@@ -53,6 +53,17 @@ public sealed class InterstitialController
 
     private bool IsEligibleNow()
     {
+        // A player who paid to remove ads must never see one. This was the
+        // gap: the flag was stored and exposed by IapManager, the save
+        // schema persisted it, and no ad code ever read it — so buying
+        // "Remove ads" would have taken the money and changed nothing.
+        // Harmless while IAP is stubbed and nobody can buy, a billing
+        // complaint the moment it ships.
+        if (_saveData.IapRemoveAds)
+        {
+            return false;
+        }
+
         if (_saveData.InterstitialCounter <= MinGamesBeforeFirst)
         {
             return false;

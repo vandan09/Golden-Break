@@ -19,7 +19,7 @@ public static class CeramicSilhouetteSprite
     private static readonly Color BodyColour = FromHex("#2d2a42");
     private static readonly Color OpeningColour = FromHex("#221f36");
 
-    private const int BezierSamplesPerSegment = 40;
+    private const int BezierSamplesPerSegment = 14;
 
     private static readonly Dictionary<CeramicShapeArchetype, Sprite> Cache =
         new Dictionary<CeramicShapeArchetype, Sprite>();

@@ -41,7 +41,10 @@ public sealed class GameplayController : MonoBehaviour
     private const float TrayVerticalGap = 1.5f;
     private const float CameraPaddingCells = 1.5f;
     private const float CeramicVerticalGap = 1.5f;
-    private const float CeramicAreaHalfHeight = 1.3f;
+    // Reserves room for the tallest shape (the vase, 200 SVG units) at the
+    // current CeramicWorldScale, with a little slack. Must grow whenever
+    // that scale does, or the piece overlaps the score header above it.
+    private const float CeramicAreaHalfHeight = 1.8f;
 
     private bool _dailyChallengeSessionActive;
 
@@ -91,9 +94,28 @@ public sealed class GameplayController : MonoBehaviour
             new GameObject("AudioManager").AddComponent<AudioManager>();
         }
 
+        // Nothing called PlayMusic before this, so the background loop would
+        // never have started no matter what was imported — the same shape of
+        // gap as the sound effects, which only reached the AudioManager once
+        // it loaded them from Resources itself. Started here rather than in
+        // AudioManager.Awake so the settings toggle has already been applied
+        // and a player who turned music off does not hear a burst of it.
+        AudioManager.Instance?.SetSoundEnabled(saveManager.Current.Settings.Sound);
+        AudioManager.Instance?.SetMusicEnabled(saveManager.Current.Settings.Music);
+        AudioManager.Instance?.PlayMusic();
+
         if (FindObjectOfType<AdManager>() == null)
         {
             new GameObject("AdManager").AddComponent<AdManager>();
+        }
+
+        // Must come after the AdManager exists — set on the instance, not
+        // read from the save by the ad code, so AdManager (a
+        // DontDestroyOnLoad singleton) never pins a SaveData object across
+        // scene loads.
+        if (AdManager.Instance != null)
+        {
+            AdManager.Instance.AdsRemoved = saveManager.Current.IapRemoveAds;
         }
 
         if (FindObjectOfType<AnalyticsManager>() == null)
@@ -318,13 +340,25 @@ public sealed class GameplayController : MonoBehaviour
         homeScreen.Configure(saveManager, inputHandler, galleryScreen, settingsScreen, dailyChallengeUi, ceramicPool);
 
         dailyHud.Configure(dailyPieceController, saveManager, ExitDailyChallengeToHome);
-        dailyGameOverScreen.Configure(dailyPieceController, dailySaveTriggers, dailyMedallionController, StartOrReplayDailyAttempt, ExitDailyChallengeToHome);
+        // Daily play gets its own rewarded controller because it has its own
+        // PieceController — continue must resume the daily board, not the
+        // regular one.
+        var dailyRewardedAdController = new RewardedAdController(
+            (placement, onReward, onFailure) => AdManager.Instance?.ShowRewarded(placement, onReward, onFailure),
+            dailyPieceController,
+            coinManager);
+
+        dailyGameOverScreen.Configure(dailyPieceController, dailySaveTriggers, dailyMedallionController, StartOrReplayDailyAttempt, ExitDailyChallengeToHome, dailyRewardedAdController);
 
         // Real gap caught on-device: no way back to the main menu or to
         // exit once Play was tapped, and Gallery/Settings/Daily Challenge
         // opened invisibly behind Home's own still-active panel and never
         // received a single tap (see PROGRESS.md). All wired
         // post-construction since HomeScreen is built after them.
+        // Rasterize the gallery's ceramic sprites in the background now,
+        // rather than all at once the first time the player opens it.
+        CeramicSpriteWarmer.Warm(ceramicPool);
+
         hud.SetHomeScreen(homeScreen);
         galleryScreen?.SetHomeScreen(homeScreen);
         settingsScreen.SetHomeScreen(homeScreen);
@@ -364,6 +398,11 @@ public sealed class GameplayController : MonoBehaviour
         // dealt.
         void StartOrReplayDailyAttempt()
         {
+            // Marks the start of a fresh attempt so the completion event is
+            // logged once per attempt, not once per game-over — an attempt
+            // can now end more than once via a rewarded continue.
+            dailySaveTriggers.BeginAttempt();
+
             System.DateTime today = System.DateTime.UtcNow;
             PieceSpawner freshSpawner = DailyChallengeManager.CreateSpawner(pool, today);
             dailyPieceController.RestartGame(freshSpawner, g => ApplyDailyObstacles(g, today));

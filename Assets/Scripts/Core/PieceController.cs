@@ -240,7 +240,9 @@ public sealed class PieceController : MonoBehaviour
         PieceDefinition piece = _hand[slotIndex];
         _tray.Slots[slotIndex].SetPiece(null, 0, Constants.TrayPieceScale);
 
-        AudioManager.Instance?.PlaySound(SoundEffect.PiecePickup);
+        // Pickup is deliberately silent — a 5ms haptic tick only. It happens
+        // constantly and carries no consequence, so a sound would repeat into
+        // noise and overlap the placement that follows it a moment later.
         HapticManager.Trigger(HapticPattern.Pickup);
 
         _dragView.gameObject.SetActive(true);
@@ -339,16 +341,23 @@ public sealed class PieceController : MonoBehaviour
 
                 _grid.PlayClearFlash(clearedCells);
 
+                // A combo plays the same clear sound as a single line, and
+                // escalates through the screen shake and a heavier haptic
+                // instead (40ms vs 25ms). CLAUDE.md §8.3 asks for a deeper
+                // chime on combos, but the one "big" clip available is
+                // better spent on ceramic completion — that happens once
+                // every 4-12 clears rather than several times a game, so a
+                // long sound reads as an event there and as noise here.
                 bool isCombo = clearResult.TotalLinesCleared >= 2;
+                AudioManager.Instance?.PlaySound(SoundEffect.LineClear);
+
                 if (isCombo)
                 {
                     Camera.main.transform.DOShakePosition(Constants.ComboScreenShakeDurationSeconds, Constants.ComboScreenShakeStrength);
-                    AudioManager.Instance?.PlaySound(SoundEffect.ComboClear);
                     HapticManager.Trigger(HapticPattern.Combo);
                 }
                 else
                 {
-                    AudioManager.Instance?.PlaySound(SoundEffect.LineClear);
                     HapticManager.Trigger(HapticPattern.Clear);
                 }
             }

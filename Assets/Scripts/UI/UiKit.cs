@@ -114,6 +114,9 @@ public static class UiKit
     public const float PrimaryButtonHeight = 60f;
     public const float SecondaryButtonHeight = 48f;
     private const int PrimaryLabelFontSize = 18;
+    // Floor for best-fit shrinking: below this a label is technically
+    // inside the button but no longer comfortably readable on a phone.
+    private const int MinLabelFontSize = 11;
     private const int SecondaryLabelFontSize = 16;
 
     /// <summary>
@@ -177,6 +180,11 @@ public static class UiKit
         var layout = contentObject.AddComponent<HorizontalLayoutGroup>();
         layout.childAlignment = TextAnchor.MiddleCenter;
         layout.spacing = 10f;
+        // Keeps the label off the rounded ends rather than running to the
+        // very edge of the pill.
+        layout.padding = new RectOffset(14, 14, 0, 0);
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
 
@@ -202,13 +210,32 @@ public static class UiKit
         labelObject.transform.SetParent(contentObject.transform, false);
         var labelText = labelObject.AddComponent<Text>();
         labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        labelText.fontSize = primary ? PrimaryLabelFontSize : SecondaryLabelFontSize;
+        int labelSize = primary ? PrimaryLabelFontSize : SecondaryLabelFontSize;
+        labelText.fontSize = labelSize;
         labelText.fontStyle = FontStyle.Bold;
         labelText.alignment = TextAnchor.MiddleCenter;
         labelText.color = accent;
-        labelText.horizontalOverflow = HorizontalWrapMode.Overflow;
-        labelText.verticalOverflow = VerticalWrapMode.Overflow;
+
+        // Labels shrink to fit rather than spilling past the button. This
+        // was Overflow, which meant any label wider than its button simply
+        // ran outside it — invisible with the short labels this shipped
+        // with, immediately visible the moment one got longer, and worse on
+        // narrow phones where the same label has fewer pixels to live in.
+        // Best-fit keeps every button correct at any width and any string
+        // length, including translations, without hand-tuning each one.
+        labelText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        labelText.verticalOverflow = VerticalWrapMode.Truncate;
+        labelText.resizeTextForBestFit = true;
+        labelText.resizeTextMaxSize = labelSize;
+        labelText.resizeTextMinSize = MinLabelFontSize;
         labelText.text = label != null ? label.ToUpperInvariant() : string.Empty;
+
+        // Takes the space the icon does not, so the layout group gives the
+        // label a real width to fit into instead of letting it size itself
+        // to whatever the text happens to measure.
+        var labelLayoutElement = labelObject.AddComponent<LayoutElement>();
+        labelLayoutElement.flexibleWidth = 1f;
+        labelLayoutElement.minWidth = 0f;
 
         return button;
     }

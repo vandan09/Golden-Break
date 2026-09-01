@@ -49,12 +49,7 @@ public sealed class GalleryScreen : MonoBehaviour
     private const int CardTierFontSize = 14;
     private const int CardDetailFontSize = 12;
 
-    // DEV ONLY - see BuildDevPreviewToggle.
     private Text _titleText;
-    private Text _devToggleLabel;
-    // DEV builds land on the full catalogue so all 21 ceramics are visible
-    // the moment the gallery opens, with no in-place refresh involved.
-    private bool _devPreviewActive = true;
 
     private GalleryManager _galleryManager;
     private CeramicDefinition[] _ceramicPool;
@@ -151,88 +146,14 @@ public sealed class GalleryScreen : MonoBehaviour
         titleText.fontStyle = FontStyle.Bold;
         titleText.alignment = TextAnchor.MiddleLeft;
         titleText.color = UiPalette.TextPrimary;
-        titleText.text = _devPreviewActive ? "Gallery · ALL" : Strings.GalleryTitle;
+        titleText.text = Strings.GalleryTitle;
         var titleLayoutElement = titleObject.AddComponent<LayoutElement>();
         titleLayoutElement.preferredWidth = 200f;
         titleLayoutElement.preferredHeight = HeaderHeight;
 
         _titleText = titleText;
 
-        BuildDevPreviewToggle(headerObject.transform);
     }
-
-    // ===================== DEV ONLY — REMOVE BEFORE RELEASE ==============
-    // A visible toggle that swaps the earned gallery for a catalogue of
-    // every ceramic and colour variant, so the artwork can be checked on a
-    // real device without playing to tier 21.
-    //
-    // This was a hidden five-tap gesture on the title first. That was the
-    // wrong call: the gesture could not be verified end to end (the test
-    // invoked onClick directly, which proves the cards build but not that
-    // a tap ever reaches the button), and on device it did nothing. A
-    // visible button removes the whole class of problem — and since this
-    // is scaffolding that gets deleted before release, hiding it bought
-    // nothing anyway.
-    //
-    // Delete BuildDevPreviewToggle, OnDevPreviewToggled,
-    // BuildAllVariantsPreview, BuildPreviewCard, MetalName and the
-    // _devPreviewActive field to strip it.
-    private void BuildDevPreviewToggle(Transform header)
-    {
-        var buttonObject = new GameObject("DevPreviewToggle");
-        buttonObject.transform.SetParent(header, false);
-
-        var background = buttonObject.AddComponent<Image>();
-        background.sprite = RoundedRectSprite.Get(14);
-        background.type = Image.Type.Sliced;
-        background.color = UiPalette.Surface;
-
-        var button = buttonObject.AddComponent<Button>();
-        button.transition = Selectable.Transition.None;
-        button.onClick.AddListener(OnDevPreviewToggled);
-
-        var layoutElement = buttonObject.AddComponent<LayoutElement>();
-        layoutElement.preferredWidth = 74f;
-        layoutElement.preferredHeight = HeaderHeight;
-
-        var labelObject = new GameObject("Label");
-        labelObject.transform.SetParent(buttonObject.transform, false);
-        _devToggleLabel = labelObject.AddComponent<Text>();
-        _devToggleLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        _devToggleLabel.fontSize = CardDetailFontSize;
-        _devToggleLabel.fontStyle = FontStyle.Bold;
-        _devToggleLabel.alignment = TextAnchor.MiddleCenter;
-        _devToggleLabel.color = UiPalette.GoldFill;
-        _devToggleLabel.text = _devPreviewActive ? "MINE" : "ALL";
-        _devToggleLabel.raycastTarget = false;
-
-        var labelRect = labelObject.GetComponent<RectTransform>();
-        labelRect.anchorMin = Vector2.zero;
-        labelRect.anchorMax = Vector2.one;
-        labelRect.offsetMin = Vector2.zero;
-        labelRect.offsetMax = Vector2.zero;
-    }
-
-    private void OnDevPreviewToggled()
-    {
-        _devPreviewActive = !_devPreviewActive;
-        _titleText.text = _devPreviewActive ? "Gallery · ALL" : Strings.GalleryTitle;
-        _devToggleLabel.text = _devPreviewActive ? "MINE" : "ALL";
-        Debug.Log($"[DEVPREVIEW] tapped, active={_devPreviewActive}");
-
-        // Closing back to Home rather than rebuilding in place. Cards
-        // rebuilt on a live canvas do not reach the screen on Android —
-        // the objects are correct (reopening shows exactly the expected
-        // content) but nothing repaints, and neither a same-frame
-        // SetActive cycle nor one spanning a frame changed that. Content
-        // built as the screen is opened does render, so the toggle picks
-        // the mode and reopening the gallery shows it.
-        //
-        // Same family as PROGRESS.md's OPEN BUG: freshly built objects
-        // render, mutated live ones do not.
-        Hide();
-    }
-    // ===================== END DEV ONLY ==================================
 
     private void BuildEmptyStateText(Transform parent)
     {
@@ -336,12 +257,6 @@ public sealed class GalleryScreen : MonoBehaviour
 
         gridLayout.cellSize = new Vector2(cellWidth, cellHeight);
 
-        if (_devPreviewActive)
-        {
-            BuildAllVariantsPreview();
-            return;
-        }
-
         IReadOnlyList<GalleryEntryData> entries = _galleryManager.Entries;
         _emptyStateText.gameObject.SetActive(entries.Count == 0);
 
@@ -388,61 +303,6 @@ public sealed class GalleryScreen : MonoBehaviour
         labelRect.anchorMax = Vector2.one;
         labelRect.offsetMin = Vector2.zero;
         labelRect.offsetMax = Vector2.zero;
-    }
-
-    // DEV ONLY — every ceramic the game can show, in one scroll: all nine
-    // tiers in the base gold, then the four looping tiers (6-9, per §3.4)
-    // in each further metal variant. 21 cards in total.
-    private void BuildAllVariantsPreview()
-    {
-        _emptyStateText.gameObject.SetActive(false);
-
-        for (int variant = 0; variant < CeramicGold.VariantCount; variant++)
-        {
-            // Variant 0 covers every tier; later variants only ever apply to
-            // the tiers that actually repeat.
-            int firstTier = variant == 0 ? 1 : 6;
-
-            for (int tier = firstTier; tier <= 9; tier++)
-            {
-                CeramicDefinition definition = ResolveDefinition(tier);
-                if (definition == null)
-                {
-                    continue;
-                }
-
-                BuildPreviewCard(definition, variant);
-            }
-        }
-    }
-
-    private void BuildPreviewCard(CeramicDefinition definition, int colourVariant)
-    {
-        GameObject cardObject = BuildCardShell($"Preview_T{definition.tier}_V{colourVariant}");
-        BuildCardThumbnail(cardObject, definition, definition.totalCracks, colourVariant);
-
-        BuildCardText(
-            cardObject.transform,
-            $"T{definition.tier} · {definition.displayName}",
-            CardDetailFontSize,
-            UiPalette.TextSecondary);
-        BuildCardText(
-            cardObject.transform,
-            $"{definition.totalCracks} cracks · {MetalName(colourVariant)}",
-            CardTierFontSize,
-            CeramicGold.ForVariant(colourVariant),
-            bold: true);
-    }
-
-    private static string MetalName(int colourVariant)
-    {
-        switch (colourVariant)
-        {
-            case 1: return "rose gold";
-            case 2: return "silver";
-            case 3: return "copper";
-            default: return "gold";
-        }
     }
 
     private void BuildCard(GalleryEntryData entry)

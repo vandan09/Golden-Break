@@ -34,6 +34,25 @@ public sealed class DailyChallengeSaveTriggers
         _pieceController.OnGameOver += OnGameOver;
     }
 
+    /// <summary>
+    /// Called when a fresh attempt begins, so the completion analytics fire
+    /// once per attempt rather than once per game-over.
+    ///
+    /// Needed because an attempt can now reach game-over more than once: a
+    /// rewarded "continue" resumes the same run, and OnGameOver then fires
+    /// again when it finally ends. RecordCompletion itself is safely
+    /// idempotent — coins award only on the first completion of the day and
+    /// the best score takes the maximum, so a higher post-continue score
+    /// still wins — but the analytics event is not, and double-counting it
+    /// would inflate completions and skew every funnel built on them.
+    /// </summary>
+    public void BeginAttempt()
+    {
+        _loggedCompletionThisAttempt = false;
+    }
+
+    private bool _loggedCompletionThisAttempt;
+
     private void OnGameOver()
     {
         string todayIso = _nowProvider().ToString("yyyy-MM-dd");
@@ -51,13 +70,17 @@ public sealed class DailyChallengeSaveTriggers
         int ghostScore = DailyChallengeManager.ComputeGhostScore(_nowProvider());
         string rankVsGhosts = score >= ghostScore ? "above_ghost" : "below_ghost";
 
-        AnalyticsManager.Instance?.LogEvent("daily_challenge_complete", new Dictionary<string, object>
+        if (!_loggedCompletionThisAttempt)
         {
-            { "score", score },
-            { "rank_vs_ghosts", rankVsGhosts },
-            { "is_first_completion_today", result.IsFirstCompletionToday },
-            { "is_new_best_today", result.IsNewBestForToday }
-        });
+            _loggedCompletionThisAttempt = true;
+            AnalyticsManager.Instance?.LogEvent("daily_challenge_complete", new Dictionary<string, object>
+            {
+                { "score", score },
+                { "rank_vs_ghosts", rankVsGhosts },
+                { "is_first_completion_today", result.IsFirstCompletionToday },
+                { "is_new_best_today", result.IsNewBestForToday }
+            });
+        }
 
         // Earn() above only requests a save when coins were actually
         // awarded (first completion of the day) — a replay that only

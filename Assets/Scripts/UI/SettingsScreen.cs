@@ -91,15 +91,32 @@ public sealed class SettingsScreen : MonoBehaviour
         _soundToggle = BuildToggleRow(_panel.transform, Strings.SettingsSoundLabel, 0);
         _musicToggle = BuildToggleRow(_panel.transform, Strings.SettingsMusicLabel, 1);
         _hapticsToggle = BuildToggleRow(_panel.transform, Strings.SettingsHapticsLabel, 2);
-        _highContrastToggle = BuildToggleRow(_panel.transform, Strings.SettingsHighContrastLabel, 3);
-        BuildRemoveAdsButton(_panel.transform, 4);
+        // High contrast (CLAUDE.md §3.9, raises the block pattern overlay
+        // from 15% to 40% so colours are distinguishable by texture) is
+        // hidden at the player's request. The plumbing stays intact —
+        // UiPalette.HighContrastEnabled, the save field and the patterned
+        // sprites all still work — so restoring this is one line.
+        //
+        // Worth remembering if accessibility comes up later: coral and
+        // green are the pairing most affected by red/green colour vision
+        // deficiency, and this was the only way to tell them apart without
+        // relying on hue.
+        // _highContrastToggle = BuildToggleRow(_panel.transform, Strings.SettingsHighContrastLabel, 3);
+        // Remove-ads is hidden until Play Billing is actually integrated —
+        // shipping a button that takes money and cannot deliver is worse
+        // than not offering it. The entitlement plumbing stays in place
+        // (IapManager, the save flag, and the ad gates that honour it), so
+        // restoring this is re-adding one line once billing works.
+        // BuildRemoveAdsButton(_panel.transform, 4);
 
         _soundToggle.onValueChanged.AddListener(OnSoundChanged);
         _musicToggle.onValueChanged.AddListener(OnMusicChanged);
         _hapticsToggle.onValueChanged.AddListener(OnHapticsChanged);
-        _highContrastToggle.onValueChanged.AddListener(OnHighContrastChanged);
+        // _highContrastToggle.onValueChanged.AddListener(OnHighContrastChanged);
 
-        BuildCrossPromoCard(_panel.transform);
+        // Cross-promo is hidden until GLYPH is actually published — the
+        // button had nowhere to send anyone and only logged its intent.
+        // BuildCrossPromoCard(_panel.transform);
     }
 
     private Toggle BuildToggleRow(Transform parent, string label, int rowIndex)
@@ -354,12 +371,16 @@ public sealed class SettingsScreen : MonoBehaviour
         _soundToggle.SetIsOnWithoutNotify(settings.Sound);
         _musicToggle.SetIsOnWithoutNotify(settings.Music);
         _hapticsToggle.SetIsOnWithoutNotify(settings.Haptics);
-        _highContrastToggle.SetIsOnWithoutNotify(settings.HighContrast);
+        // Null while the high-contrast row is hidden.
+        _highContrastToggle?.SetIsOnWithoutNotify(settings.HighContrast);
 
         SyncSwitchVisual(_soundToggle);
         SyncSwitchVisual(_musicToggle);
         SyncSwitchVisual(_hapticsToggle);
-        SyncSwitchVisual(_highContrastToggle);
+        if (_highContrastToggle != null)
+        {
+            SyncSwitchVisual(_highContrastToggle);
+        }
 
         RefreshRemoveAdsButton();
 

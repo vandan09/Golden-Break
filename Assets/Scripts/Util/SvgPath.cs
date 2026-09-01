@@ -15,9 +15,15 @@ using UnityEngine;
 /// </summary>
 public static class SvgPath
 {
-    // Enough segments that a curve reads as smooth at 4x raster scale
-    // without generating points the rasterizer then has to walk per pixel.
-    private const int CubicSamples = 40;
+    // Enough segments that a curve reads as smooth at 4x raster scale.
+    //
+    // Kept deliberately low because the polygon fill tests every pixel
+    // against every vertex, so this multiplies directly into rasterization
+    // cost: at 40 the nine ceramics took long enough that opening the
+    // gallery visibly stalled on first use. At 14 the curve is still
+    // smooth once downsampled from 4x, and the fill is roughly three times
+    // cheaper.
+    private const int CubicSamples = 14;
 
     public static Vector2[] ToPoints(string d)
     {

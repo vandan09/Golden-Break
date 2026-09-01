@@ -41,6 +41,13 @@ public sealed class CeramicView : MonoBehaviour
     private const float AmbientGlowMinAlpha = 0.05f;
     private const float AmbientGlowMaxAlpha = 0.16f;
 
+    // The completion moment lifts the ambient wash well past its normal
+    // range so the finished vessel reads as lit from within.
+    private const float CompletionGlowPeak = 3.2f;
+    private const float CompletionGlowRiseSeconds = 0.45f;
+    private const float CompletionGlowFallSeconds = 0.8f;
+    private const int CompletionParticleCount = 10;
+
     private const float ProgressBarWidth = 1.6f;
     private const float ProgressBarHeight = 0.08f;
 
@@ -334,12 +341,93 @@ public sealed class CeramicView : MonoBehaviour
         _progressBarFill.localPosition = new Vector3(-0.5f + (fraction * 0.5f), 0f, -0.05f);
     }
 
+    /// <summary>
+    /// The gold-flow moment (Claude Design Screen 3), played when the final
+    /// crack closes and the vessel is whole.
+    ///
+    /// The design draws this as three things happening together: the radial
+    /// gold wash behind the ceramic swelling well past its resting value, a
+    /// column of gold particles rising and fading above the piece
+    /// (particleRiseTall), and the vessel itself reacting. Previously this
+    /// was a bare punch-scale — CLAUDE.md §3.4 calls the repair "the entire
+    /// differentiator", and completing one is the single moment that pays
+    /// off 4-12 line clears of work, so it should not be the quietest
+    /// animation in the game.
+    ///
+    /// Sound and haptics are the caller's (CeramicController fires
+    /// CeramicComplete and a 50ms pulse alongside this).
+    /// </summary>
     public void PlayCompletionCelebration(System.Action onComplete)
     {
         Sequence sequence = DOTween.Sequence();
+
+        // §3.4's "final crack fills -> 1 second pause" — the beat that makes
+        // the player look up before anything else happens.
         sequence.AppendInterval(Constants.CeramicCompletionPauseSeconds);
-        sequence.Append(transform.DOPunchScale(Vector3.one * 0.15f, Constants.CeramicCelebrationDurationSeconds, vibrato: 4, elasticity: 0.6f));
+
+        // The wash swells to full gold and settles back, so the piece reads
+        // as lit from within rather than merely scaled.
+        sequence.AppendCallback(() =>
+        {
+            SpawnCompletionParticles();
+            DOTween.To(
+                () => 0f,
+                t => SetAmbientGlowStrength(Mathf.Lerp(1f, CompletionGlowPeak, t)),
+                1f,
+                CompletionGlowRiseSeconds)
+                .SetEase(Ease.OutQuad);
+        });
+
+        sequence.Append(transform.DOPunchScale(
+            Vector3.one * 0.15f,
+            Constants.CeramicCelebrationDurationSeconds,
+            vibrato: 4,
+            elasticity: 0.6f));
+
+        sequence.AppendCallback(() =>
+        {
+            DOTween.To(
+                () => 0f,
+                t => SetAmbientGlowStrength(Mathf.Lerp(CompletionGlowPeak, 1f, t)),
+                1f,
+                CompletionGlowFallSeconds)
+                .SetEase(Ease.InQuad);
+        });
+
         sequence.OnComplete(() => onComplete?.Invoke());
+    }
+
+    // A fuller version of the per-crack particle puff: more of them, spread
+    // wider and rising higher, matching the design's taller particle column
+    // for this moment specifically rather than reusing the small one that
+    // fires on every single crack repair.
+    private void SpawnCompletionParticles()
+    {
+        for (int i = 0; i < CompletionParticleCount; i++)
+        {
+            var obj = new GameObject("CompletionParticle");
+            obj.transform.SetParent(transform, false);
+
+            float xOffset = Random.Range(-0.55f, 0.55f);
+            obj.transform.localPosition = new Vector3(xOffset, Random.Range(-1.0f, -0.6f), -0.1f);
+            obj.transform.localScale = Vector3.one * Random.Range(0.05f, 0.09f);
+
+            var sr = obj.AddComponent<SpriteRenderer>();
+            sr.sprite = PlaceholderSprite.GetSolid(Color.white);
+            sr.color = new Color(0.94f, 0.85f, 0.56f, 0.95f);
+            sr.sortingOrder = 3;
+
+            float delay = i * 0.07f;
+            float riseHeight = 1.4f + Random.Range(0f, 0.7f);
+            float duration = 1.1f + Random.Range(0f, 0.3f);
+
+            DOTween.Sequence()
+                .AppendInterval(delay)
+                .Append(obj.transform.DOLocalMoveY(obj.transform.localPosition.y + riseHeight, duration).SetEase(Ease.OutQuad))
+                .Join(obj.transform.DOScale(Vector3.one * 0.015f, duration))
+                .Join(DOTween.ToAlpha(() => sr.color, c => sr.color = c, 0f, duration))
+                .OnComplete(() => Object.Destroy(obj));
+        }
     }
 
     // Emits the crack's real vertices up to t rather than a fixed number of

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1034265753046",
+    "project_id": "golden-break-5da32",
+    "storage_bucket": "golden-break-5da32.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1034265753046:android:96cdb45d11aad7b711e077",
+        "android_client_info": {
+          "package_name": "com.dizzo.goldenBreak"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABXqhW1g_IkLzw8xukMNxrGp-s9dHr-oI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

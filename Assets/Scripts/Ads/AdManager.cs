@@ -261,8 +261,25 @@ public sealed class AdManager : MonoBehaviour
 
     // ---- Banner ---------------------------------------------------------
 
+    /// <summary>
+    /// Set once the save is loaded so every ad path can honour a purchased
+    /// ad removal. Kept as a plain flag rather than a SaveData reference so
+    /// AdManager, a DontDestroyOnLoad singleton, does not outlive and pin a
+    /// save object across scene loads.
+    /// </summary>
+    public bool AdsRemoved { get; set; }
+
     public void ShowBanner()
     {
+        // Paid to remove ads: never show one. Rewarded ads are deliberately
+        // NOT gated here — those are player-initiated and give something
+        // back, so removing ads should not also remove the ability to earn
+        // a free undo.
+        if (AdsRemoved)
+        {
+            return;
+        }
+
         if (_bannerVisible)
         {
             return;

@@ -87,12 +87,22 @@ public sealed class DailyChallengeUI : MonoBehaviour
         text.color = colour;
         text.text = initialText;
 
+        // Shrink to fit rather than run past the screen edge.
+        text.horizontalOverflow = HorizontalWrapMode.Wrap;
+        text.verticalOverflow = VerticalWrapMode.Truncate;
+        text.resizeTextForBestFit = true;
+        text.resizeTextMaxSize = fontSize;
+        text.resizeTextMinSize = Mathf.Max(10, fontSize / 2);
+
+        // Stretched to the screen width minus padding rather than a fixed
+        // 600 units, which was wider than the 390-unit canvas itself and
+        // hung off both edges.
         var rect = textObject.GetComponent<RectTransform>();
-        rect.anchorMin = anchor;
-        rect.anchorMax = anchor;
+        rect.anchorMin = new Vector2(0f, anchor.y);
+        rect.anchorMax = new Vector2(1f, anchor.y);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.sizeDelta = new Vector2(600f, 60f);
+        rect.offsetMin = new Vector2(24f, -30f);
+        rect.offsetMax = new Vector2(-24f, 30f);
 
         return text;
     }

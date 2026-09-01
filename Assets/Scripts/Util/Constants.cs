@@ -40,7 +40,20 @@ public static class Constants
     public const float GoldFlowAnimationSeconds = 0.5f;
     public const float CeramicCompletionPauseSeconds = 1f;
     public const float CeramicCelebrationDurationSeconds = 1.4f;
-    public const float CeramicWorldScale = 0.012f;
+    // World units per SVG unit for the gameplay ceramic. Raised from 0.012
+    // so the vessel and its cracks read clearly on a phone: at the old
+    // scale the thinner unrepaired seams were hard to tell apart, which
+    // matters because tracking "how many cracks left" is the whole loop.
+    //
+    // Free to raise because the gameplay camera is width-bound on a
+    // portrait phone (the grid.s width sets orthographicSize, ~11.3 versus
+    // ~8.9 for height), so the extra vertical extent costs nothing and the
+    // grid does not shrink. Crack stroke widths are multiples of this, so
+    // the whole piece scales together.
+    //
+    // The UI previews on Home and in the Gallery are unaffected: those fit
+    // the shape to their own container rather than using this scale.
+    public const float CeramicWorldScale = 0.017f;
 
     // Coin economy (CLAUDE.md §4.5)
     public const int CoinsForGameOver = 5;

@@ -478,10 +478,9 @@ public sealed class GameOverScreen : MonoBehaviour
 
     private void OnContinueClicked()
     {
-        // Captured before the ad request — TryContinue (on success) resets
-        // CurrentScore to 0 as part of starting the next portion of the
-        // game, so "score at the moment continue was used" has to be read
-        // before that happens, not from the callback.
+        // Captured before the ad request so the analytics event reports the
+        // score the player actually chose to save, independent of anything
+        // that happens while the ad is on screen.
         int scoreAtContinue = _pieceController.Score.CurrentScore;
 
         _rewardedAdController?.RequestContinue(succeeded =>
