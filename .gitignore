@@ -100,3 +100,14 @@ crashlytics-build.properties
 /screenshots/
 /pmtests.xml
 /tests.xml
+
+# Firebase SDK platform content this Android-only game never ships to.
+# x86_64 is the Editor Play Mode host plugin (desktop testing) -
+# regenerable by re-running Assets/Editor/AudioImportSetup or reimporting
+# the SDK, not something to version. iOS/tvOS are platforms this project
+# never builds for. Together these were ~300MB and included two files
+# over GitHub's 100MB per-file limit.
+/Assets/Firebase/Plugins/x86_64/
+/Assets/Firebase/Plugins/iOS/
+/Assets/Plugins/iOS/Firebase/
+/Assets/Plugins/tvOS/
